@@ -26,74 +26,55 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Geocoder
+import android.location.LocationManager
+import androidx.compose.ui.platform.LocalContext
+import dev.aura.adosaura.config.ConfigFiles
+import dev.aura.adosaura.config.KeyValueParser
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
+import kotlin.math.roundToInt
 
-/** A simple weather tile fetching data from Open-Meteo. */
+/**
+ * Current weather from Open-Meteo, for wherever the phone actually is.
+ *
+ * Where "here" is, most precise first:
+ *  1. the phone's last known coarse location (ACCESS_COARSE_LOCATION)
+ *  2. `lat=` / `lon=` in /sdcard/adosaura/look
+ *  3. IP geolocation over HTTPS
+ *
+ * The place is printed under the temperature, so a wrong guess is visible
+ * instead of quietly showing someone else's weather.
+ */
 @Composable
 fun WeatherTile(modifier: Modifier = Modifier) {
+    val context = LocalContext.current.applicationContext
     var weather by remember { mutableStateOf("loading...") }
     var tempC by remember { mutableStateOf<Int?>(null) }
+    var place by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
-            withContext(Dispatchers.IO) {
-                try {
-                    // Open-Meteo requires latitude and longitude. Since we don't have location permissions,
-                    // we'll default to a generic lat/lon or try to detect it if possible. 
-                    // Using IP-based detection via a free service or a fallback (e.g. London).
-                    
-                    var lat = 51.5074
-                    var lon = -0.1278
-                    
-                    try {
-                        val ipApi = URL("http://ip-api.com/json").readText()
-                        val ipJson = JSONObject(ipApi)
-                        if (ipJson.getString("status") == "success") {
-                            lat = ipJson.getDouble("lat")
-                            lon = ipJson.getDouble("lon")
-                        }
-                    } catch (e: Exception) {
-                        // ignore IP-API failure
-                    }
-                    
-                    val url = URL("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current_weather=true")
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 5000
-                    conn.readTimeout = 5000
-                    val response = conn.inputStream.bufferedReader().use { it.readText() }
-                    val json = JSONObject(response)
-                    val current = json.getJSONObject("current_weather")
-                    val t = current.getDouble("temperature").toInt()
-                    val code = current.getInt("weathercode")
-                    
-                    val desc = when (code) {
-                        0 -> "clear"
-                        1, 2, 3 -> "cloudy"
-                        45, 48 -> "fog"
-                        51, 53, 55, 56, 57 -> "drizzle"
-                        61, 63, 65, 66, 67 -> "rain"
-                        71, 73, 75, 77 -> "snow"
-                        80, 81, 82 -> "showers"
-                        85, 86 -> "snow showers"
-                        95, 96, 99 -> "thunderstorm"
-                        else -> "unknown"
-                    }
-                    
-                    withContext(Dispatchers.Main) {
-                        tempC = t
-                        weather = desc
-                        isError = false
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        weather = "error"
-                        isError = true
-                    }
+            val result = withContext(Dispatchers.IO) { runCatching { fetchWeather(context) } }
+            result.onSuccess {
+                tempC = it.tempC
+                weather = it.desc
+                place = it.place
+                isError = false
+            }.onFailure {
+                // Keep the last good reading on a flaky network; only say
+                // "error" when there has never been one.
+                if (tempC == null) {
+                    weather = "offline"
+                    isError = true
                 }
             }
-            delay(15 * 60 * 1000) // 15 mins
+            delay(if (result.isSuccess) 15 * 60 * 1000L else 60 * 1000L)
         }
     }
 
@@ -113,13 +94,13 @@ fun WeatherTile(modifier: Modifier = Modifier) {
             // Simple animated sun or cloud based on weather string
             if (!isError && weather != "loading...") {
                 Canvas(modifier = Modifier.size(32.dp).padding(bottom = 8.dp)) {
-                    if (weather == "clear") {
+                    if (weather.contains("clear")) {
                         drawCircle(
                             color = Palette.current.yellow,
                             radius = size.width / 2 * scale,
                             center = center
                         )
-                    } else if (weather.contains("cloud") || weather.contains("fog")) {
+                    } else if (weather.contains("cloud") || weather.contains("overcast") || weather.contains("fog")) {
                         val cloudColor = Palette.current.fgBright
                         drawCircle(
                             color = cloudColor,
@@ -186,6 +167,99 @@ fun WeatherTile(modifier: Modifier = Modifier) {
                     fontFamily = AdosauraMono,
                 )
             }
+            if (place.isNotEmpty()) {
+                Text(
+                    text = place,
+                    color = Palette.current.dim,
+                    fontSize = Metrics.titleSize,
+                    fontFamily = AdosauraMono,
+                    maxLines = 1,
+                )
+            }
         }
+    }
+}
+
+private class Reading(val tempC: Int, val desc: String, val place: String)
+
+private class Spot(val lat: Double, val lon: Double, val place: String)
+
+private fun fetchWeather(context: Context): Reading {
+    val spot = deviceSpot(context) ?: lookSpot() ?: ipSpot()
+        ?: error("no location")
+    val json = JSONObject(
+        httpGet(
+            "https://api.open-meteo.com/v1/forecast" +
+                "?latitude=${spot.lat}&longitude=${spot.lon}" +
+                "&current=temperature_2m,weather_code&timezone=auto",
+        ),
+    )
+    val current = json.getJSONObject("current")
+    return Reading(
+        tempC = current.getDouble("temperature_2m").roundToInt(),
+        desc = describe(current.getInt("weather_code")),
+        place = spot.place,
+    )
+}
+
+/** WMO weather codes, as Open-Meteo documents them. */
+private fun describe(code: Int): String = when (code) {
+    0 -> "clear"
+    1 -> "mostly clear"
+    2 -> "partly cloudy"
+    3 -> "overcast"
+    45, 48 -> "fog"
+    51, 53, 55, 56, 57 -> "drizzle"
+    61, 63, 65, 66, 67 -> "rain"
+    71, 73, 75, 77 -> "snow"
+    80, 81, 82 -> "showers"
+    85, 86 -> "snow showers"
+    95, 96, 99 -> "thunderstorm"
+    else -> "unknown"
+}
+
+/** The freshest fix any provider already has — no GPS spin-up, no battery cost. */
+private fun deviceSpot(context: Context): Spot? {
+    val granted = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) ==
+        PackageManager.PERMISSION_GRANTED
+    if (!granted) return null
+    val lm = context.getSystemService(LocationManager::class.java) ?: return null
+    val fix = runCatching {
+        lm.getProviders(true)
+            .mapNotNull { lm.getLastKnownLocation(it) }
+            .maxByOrNull { it.time }
+    }.getOrNull() ?: return null
+    val city = runCatching {
+        @Suppress("DEPRECATION")
+        Geocoder(context, Locale.getDefault())
+            .getFromLocation(fix.latitude, fix.longitude, 1)
+            ?.firstOrNull()?.locality
+    }.getOrNull()
+    return Spot(fix.latitude, fix.longitude, city?.lowercase() ?: "here")
+}
+
+/** `lat=44.8` / `lon=20.4` (and optional `place=`) in the look file. */
+private fun lookSpot(): Spot? {
+    val kv = KeyValueParser.parse(ConfigFiles.read(ConfigFiles.look).orEmpty()).entries
+    val lat = kv["lat"]?.toDoubleOrNull() ?: return null
+    val lon = kv["lon"]?.toDoubleOrNull() ?: return null
+    return Spot(lat, lon, kv["place"] ?: "look")
+}
+
+/** HTTPS only: Android blocks cleartext HTTP, which is why the old lookup always fell back to London. */
+private fun ipSpot(): Spot? = runCatching {
+    val j = JSONObject(httpGet("https://ipwho.is/"))
+    if (!j.optBoolean("success")) null
+    else Spot(j.getDouble("latitude"), j.getDouble("longitude"), "~" + j.optString("city").lowercase())
+}.getOrNull()
+
+private fun httpGet(url: String): String {
+    val conn = URL(url).openConnection() as HttpURLConnection
+    conn.connectTimeout = 5000
+    conn.readTimeout = 5000
+    return try {
+        conn.inputStream.bufferedReader().use { it.readText() }
+    } finally {
+        conn.disconnect()
     }
 }

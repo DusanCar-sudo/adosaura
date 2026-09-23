@@ -22,6 +22,10 @@
     <!-- Open-Meteo weather tile needs the network. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- The weather tile asks for the phone's last known coarse fix; without it
+         it falls back to the look file and then to IP geolocation. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- The lock screen overlay will need to start on boot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 

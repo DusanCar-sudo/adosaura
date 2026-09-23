@@ -26,6 +26,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.io.File
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * A block-matrix system monitor graph showing CPU usage, live temperature,
@@ -33,9 +38,11 @@ import java.io.File
  */
 @Composable
 fun PerfTile(modifier: Modifier = Modifier) {
-    var historyCpu by remember { mutableStateOf(List(50) { 0.05f }) }
+    var historyCpu by remember { mutableStateOf(List(50) { 0f }) }
     var historyRam by remember { mutableStateOf(List(50) { 0.40f }) }
-    var temp by remember { mutableStateOf("40°C") }
+    val context = LocalContext.current.applicationContext
+    var temp by remember { mutableStateOf("") }
+    var cpuKnown by remember { mutableStateOf(true) }
     var ramUsedStr by remember { mutableStateOf("0.0 GB") }
     var ramTotalStr by remember { mutableStateOf("0.0 GB") }
 
@@ -45,7 +52,10 @@ fun PerfTile(modifier: Modifier = Modifier) {
             var lastIdle = 0L
 
             while (isActive) {
-                // 1. Read CPU from /proc/stat
+                // 1. CPU. Android 8+ forbids apps from reading /proc/stat, so on
+                //    this phone it always failed and the tile sat at a made-up 8%.
+                //    Try it anyway (some ROMs allow it), else use how hard the
+                //    cores are clocked: each core's current / max frequency.
                 val stat = File("/proc/stat").runCatching { readLines().firstOrNull() }.getOrNull()
                 var currentTotal = 0L
                 var currentIdle = 0L
@@ -56,13 +66,15 @@ fun PerfTile(modifier: Modifier = Modifier) {
                         currentTotal = parts.sum()
                     }
                 }
-                
+
                 val deltaTotal = currentTotal - lastTotal
                 val deltaIdle = currentIdle - lastIdle
-                val usage = if (deltaTotal > 0 && lastTotal > 0) {
+                val usage: Float? = if (deltaTotal > 0 && lastTotal > 0) {
                     (1f - (deltaIdle.toFloat() / deltaTotal.toFloat())).coerceIn(0f, 1f)
-                } else 0.08f
-                
+                } else {
+                    cpuFreqLoad()
+                }
+
                 if (currentTotal > 0) {
                     lastTotal = currentTotal
                     lastIdle = currentIdle
@@ -86,36 +98,28 @@ fun PerfTile(modifier: Modifier = Modifier) {
                 val usedGb = String.format("%.1f", (memTotalKb - memAvailableKb).coerceAtLeast(0) / 1048576f)
                 val totalGb = String.format("%.1f", memTotalKb / 1048576f)
 
-                // 3. Read CPU Temp from /sys/class/thermal
-                val thermals = File("/sys/class/thermal").runCatching { listFiles() }.getOrNull()
-                var maxCpuTemp = 0
-                var maxAnyTemp = 0
-                thermals?.forEach { dir ->
-                    if (dir.name.startsWith("thermal_zone")) {
-                        val type = File(dir, "type").runCatching { readText().trim().lowercase() }.getOrNull() ?: ""
-                        // Skip 'soc' or 'step' thermal zones that report bogus numbers (e.g. 274000)
-                        if (type == "soc" || type.contains("step")) return@forEach
-                        val raw = File(dir, "temp").runCatching { readText().trim().toIntOrNull() }.getOrNull() ?: return@forEach
-                        val t = if (raw > 1000) raw / 1000 else raw
-                        if (t in 15..110) {
-                            if (type.contains("cpu") || type.contains("cpuss")) {
-                                if (t > maxCpuTemp) maxCpuTemp = t
-                            } else {
-                                if (t > maxAnyTemp) maxAnyTemp = t
-                            }
-                        }
-                    }
+                // 3. Temperature: the median CPU zone, so one core spiking does not
+                //    read as the whole chip being hot. Falls back to the battery.
+                val cpuTemps = mutableListOf<Int>()
+                File("/sys/class/thermal").runCatching { listFiles() }.getOrNull()?.forEach { dir ->
+                    if (!dir.name.startsWith("thermal_zone")) return@forEach
+                    val type = File(dir, "type").runCatching { readText().trim().lowercase() }.getOrNull() ?: return@forEach
+                    if (!type.startsWith("cpu")) return@forEach
+                    val raw = File(dir, "temp").runCatching { readText().trim().toIntOrNull() }.getOrNull() ?: return@forEach
+                    val t = if (raw > 1000) raw / 1000 else raw
+                    if (t in 15..110) cpuTemps += t
                 }
-                val tempC = when {
-                    maxCpuTemp > 0 -> maxCpuTemp
-                    maxAnyTemp > 0 -> maxAnyTemp
-                    else -> 41
+                val tempLabel = if (cpuTemps.isNotEmpty()) {
+                    "${cpuTemps.sorted()[cpuTemps.size / 2]}°C"
+                } else {
+                    batteryTempC(context)?.let { "batt ${it}°C" } ?: "?°C"
                 }
 
                 withContext(Dispatchers.Main) {
-                    historyCpu = (historyCpu + usage).takeLast(50)
+                    cpuKnown = usage != null
+                    historyCpu = (historyCpu + (usage ?: 0f)).takeLast(50)
                     historyRam = (historyRam + ramUsage).takeLast(50)
-                    temp = "${tempC}°C"
+                    temp = tempLabel
                     ramUsedStr = "$usedGb GB"
                     ramTotalStr = "$totalGb GB"
                 }
@@ -131,7 +135,7 @@ fun PerfTile(modifier: Modifier = Modifier) {
     Column(modifier.padding(10.dp)) {
         // CPU status line
         Text(
-            text = "cpu $currentCpuPct%  ·  $temp",
+            text = (if (cpuKnown) "cpu $currentCpuPct%" else "cpu ?") + "  ·  $temp",
             color = Palette.current.accent,
             fontSize = 12.sp,
             fontFamily = AdosauraMono,
@@ -197,4 +201,22 @@ private fun MatrixGraph(
             }
         }
     }
+}
+
+/** Mean of cur/max frequency over every core that exposes cpufreq, or null. */
+private fun cpuFreqLoad(): Float? {
+    val cores = File("/sys/devices/system/cpu").listFiles { f -> f.name.matches(Regex("cpu\\d+")) }
+        ?: return null
+    val loads = cores.mapNotNull { core ->
+        val cur = File(core, "cpufreq/scaling_cur_freq").runCatching { readText().trim().toLong() }.getOrNull()
+        val max = File(core, "cpufreq/cpuinfo_max_freq").runCatching { readText().trim().toLong() }.getOrNull()
+        if (cur != null && max != null && max > 0) (cur.toFloat() / max).coerceIn(0f, 1f) else null
+    }
+    return if (loads.isEmpty()) null else loads.average().toFloat()
+}
+
+private fun batteryTempC(context: Context): Int? {
+    val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return null
+    val tenths = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+    return if (tenths == Int.MIN_VALUE) null else tenths / 10
 }

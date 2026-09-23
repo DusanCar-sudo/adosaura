@@ -100,6 +100,18 @@ result that does not add up, so a detection bug can never cost you the file.
 Unknown types render as `? type` so a typo is visible instead of silently
 eating a slot.
 
+### `look` — weather location override
+
+The weather tile uses the phone's coarse location (granted by
+`scripts/adb-grants.sh`), then this file, then IP geolocation. The place it
+used is printed under the temperature. To pin it:
+
+```ini
+lat=44.79
+lon=20.45
+place=belgrade
+```
+
 ## Using it
 
 | | |
@@ -147,7 +159,7 @@ what Phase 2 (no root) covers and what Phase 3 (rooted) would add.
         LauncherModel.kt      all state, and every write back to the files
         config/               parsers + file IO — pure Kotlin, unit tested
         tiles/  drawer/  status/  ui/
-    app/src/test/java/         71 tests over the two file formats
+    app/src/test/java/         78 tests over the file formats and labels
     docs/DESIGN.md             the design system and the phase boundaries
 
 ## Licence

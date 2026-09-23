@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.aura.adosaura.config.AppEntry
 import dev.aura.adosaura.config.Fuzzy
+import dev.aura.adosaura.config.Labels
 import dev.aura.adosaura.theme.AdosauraMono
 import dev.aura.adosaura.theme.Metrics
 import dev.aura.adosaura.theme.Palette
@@ -73,6 +74,7 @@ fun DrawerScreen(
     modifier: Modifier = Modifier,
 ) {
     val ranked = remember(query, entries) { Fuzzy.rank(query, entries) }
+    val names = remember(entries) { Labels.display(entries) }
     val top = ranked.firstOrNull()
     val focusRequester = remember { FocusRequester() }
     var menuEntry by remember { mutableStateOf<AppEntry?>(null) }
@@ -82,7 +84,7 @@ fun DrawerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Palette.current.bg.copy(alpha = 0.5f))
+            .background(Palette.current.bg.copy(alpha = 0.7f))
             .pointerInput(Unit) { detectTapGestures(onTap = { onClose() }) },
         contentAlignment = Alignment.Center
     ) {
@@ -90,7 +92,7 @@ fun DrawerScreen(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
                 .fillMaxHeight(0.8f)
-                .background(Palette.current.bgAlt.copy(alpha = Metrics.PANEL_ALPHA))
+                .background(Palette.current.bgAlt)
                 .border(Metrics.border, Palette.current.border)
                 .pointerInput(Unit) { detectTapGestures { /* consume taps so they don't close drawer */ } }
                 .onPreviewKeyEvent { event ->
@@ -138,6 +140,7 @@ fun DrawerScreen(
                 items(ranked, key = { it.pkg }) { entry ->
                     AppRow(
                         entry = entry,
+                        name = names[entry.pkg] ?: entry.label,
                         installed = entry.pkg in known,
                         onLaunch = onLaunch,
                         onMenu = { menuEntry = entry },
@@ -178,7 +181,7 @@ fun DrawerScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 TextMenu(
-                    title = entry.label,
+                    title = names[entry.pkg] ?: entry.label,
                     items = listOf(
                         MenuItem("open") { menuEntry = null; onLaunch(entry.pkg) },
                         MenuItem("app info") { menuEntry = null; onInfo(entry) },
@@ -236,12 +239,13 @@ private fun SearchField(
 @Composable
 private fun AppRow(
     entry: AppEntry,
+    name: String,
     installed: Boolean,
     onLaunch: (String) -> Unit,
     onMenu: () -> Unit,
 ) {
     Text(
-        text = if (installed) entry.label else "${entry.label} ?",
+        text = if (installed) name else "$name ?",
         color = if (installed) Palette.current.fg else Palette.current.dim,
         fontSize = Metrics.drawerRowSize,
         fontFamily = AdosauraMono,

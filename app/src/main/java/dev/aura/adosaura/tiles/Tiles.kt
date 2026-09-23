@@ -1,6 +1,7 @@
 package dev.aura.adosaura.tiles
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,13 +12,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.aura.adosaura.config.AppEntry
 import dev.aura.adosaura.config.AppsConfig
+import dev.aura.adosaura.config.Labels
 import dev.aura.adosaura.config.TileSpec
 import dev.aura.adosaura.theme.AdosauraMono
 import dev.aura.adosaura.theme.Metrics
@@ -133,11 +139,19 @@ fun ClockCalTile() {
             fontFamily = AdosauraMono,
         )
         Spacer(Modifier.padding(4.dp))
-        MonthGrid(
-            month = YearMonth.from(now),
-            today = now.toLocalDate(),
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // The big clock leaves little room: if the whole month does not fit,
+        // show just this week's row rather than a header with nothing under it.
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+            val rowHeight = with(LocalDensity.current) { (Metrics.smallSize * 1.5f).toDp() }
+            val month = YearMonth.from(now)
+            val weeks = (month.atDay(1).dayOfWeek.value - 1 + month.lengthOfMonth() + 6) / 7
+            MonthGrid(
+                month = month,
+                today = now.toLocalDate(),
+                weekOnly = maxHeight < rowHeight * (weeks + 1),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -172,7 +186,12 @@ fun CalendarTile(compact: Boolean) {
  * colour. Week starts on Monday, the way the calendar on the laptop does.
  */
 @Composable
-private fun MonthGrid(month: YearMonth, today: LocalDate, modifier: Modifier = Modifier) {
+private fun MonthGrid(
+    month: YearMonth,
+    today: LocalDate,
+    modifier: Modifier = Modifier,
+    weekOnly: Boolean = false,
+) {
     val firstOfMonth = month.atDay(1)
     val leadingBlanks = firstOfMonth.dayOfWeek.value - DayOfWeek.MONDAY.value
     val daysInMonth = month.lengthOfMonth()
@@ -193,7 +212,12 @@ private fun MonthGrid(month: YearMonth, today: LocalDate, modifier: Modifier = M
         }
 
         var day = 1 - leadingBlanks
+        val todayRow = day + (today.dayOfMonth - day) / 7 * 7
         while (day <= daysInMonth) {
+            if (weekOnly && day != todayRow) {
+                day += 7
+                continue
+            }
             Row(Modifier.fillMaxWidth()) {
                 for (column in 0 until 7) {
                     val cell = day + column
@@ -232,33 +256,40 @@ fun AppListTile(
     onLaunch: (String) -> Unit,
 ) {
     val rows = entries.filter { group in it.groups || group == it.pkg }
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-    ) {
-        if (rows.isEmpty()) {
-            Text(
-                text = "no apps in \"$group\"",
-                color = Palette.current.dim,
-                fontSize = Metrics.smallSize,
-                fontFamily = AdosauraMono,
-            )
-            return@Column
-        }
+    val names = remember(entries) { Labels.display(entries) }
+    val cellPx = rememberTextMeasurer()
+        .measure("M", TextStyle(fontSize = Metrics.bodySize, fontFamily = AdosauraMono))
+        .size.width
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val cols = if (cellPx > 0) constraints.maxWidth / cellPx else Int.MAX_VALUE
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            if (rows.isEmpty()) {
+                Text(
+                    text = "no apps in \"$group\"",
+                    color = Palette.current.dim,
+                    fontSize = Metrics.smallSize,
+                    fontFamily = AdosauraMono,
+                )
+                return@Column
+            }
 
-        rows.forEach { entry ->
-            Text(
-                text = entry.label,
-                color = Palette.current.fg,
-                fontSize = Metrics.bodySize,
-                fontFamily = AdosauraMono,
-                maxLines = 1,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onLaunch(entry.pkg) }
-                    .padding(vertical = 3.dp),
-            )
+            rows.forEach { entry ->
+                Text(
+                    text = Labels.split(names[entry.pkg] ?: entry.label, cols).joinToString("\n"),
+                    color = Palette.current.fg,
+                    fontSize = Metrics.bodySize,
+                    fontFamily = AdosauraMono,
+                    softWrap = false,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onLaunch(entry.pkg) }
+                        .padding(vertical = 3.dp),
+                )
+            }
         }
     }
 }

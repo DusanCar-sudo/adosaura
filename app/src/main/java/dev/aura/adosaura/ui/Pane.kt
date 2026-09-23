@@ -103,6 +103,7 @@ fun Pane(
                     fontFamily = AdosauraMono,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
+                    softWrap = false,
                 )
             }
 

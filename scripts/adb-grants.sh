@@ -52,6 +52,10 @@ else
     hint "Settings > Apps > adosaura > Autostart"
 fi
 
+say "coarse location — the weather tile shows your weather, not London's"
+adb shell pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION 2>/dev/null \
+    || hint "set it by hand: Settings > Apps > adosaura > Permissions > Location"
+
 say "default home"
 if adb shell cmd package set-home-activity "$PKG/.LauncherActivity" >/dev/null 2>&1; then
     :
