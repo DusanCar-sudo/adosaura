@@ -28,6 +28,11 @@ import dev.aura.adosaura.config.TileSpec
 import dev.aura.adosaura.theme.AdosauraMono
 import dev.aura.adosaura.theme.Metrics
 import dev.aura.adosaura.theme.Palette
+import dev.aura.adosaura.theme.LocalTilePalette
+import dev.aura.adosaura.theme.styled
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import dev.aura.adosaura.ui.Axis
 import dev.aura.adosaura.ui.Pane
 import dev.aura.adosaura.ui.freeStorageGb
@@ -58,7 +63,9 @@ fun TileView(
     onEdit: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Pane(
+    val palette = Palette.current.styled(spec.bg, spec.fg)
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalTilePalette provides palette) { Pane(
         title = titleOf(spec),
         isActive = isActive,
         modifier = modifier.fillMaxSize(),
@@ -68,7 +75,10 @@ fun TileView(
         onSelect = onSelect,
         onTitleLongPress = onEdit,
     ) {
-        when (TileType.of(spec.type)) {
+        // size=N scales this tile's text only; the title bar stays put.
+        CompositionLocalProvider(
+            LocalDensity provides Density(density.density, density.fontScale * spec.size / 100f),
+        ) { when (TileType.of(spec.type)) {
             TileType.CLOCK -> ClockTile()
             TileType.CALENDAR -> CalendarTile(compact = false)
             TileType.CLOCKCAL -> ClockCalTile()
@@ -81,9 +91,12 @@ fun TileView(
             TileType.STATS -> StatsTile()
             TileType.PERF -> PerfTile(modifier)
             TileType.WEATHER -> WeatherTile(modifier)
+            TileType.ANALOG -> AnalogClockTile()
+            TileType.BATTERY -> BatteryTile()
+            TileType.MATRIX -> MatrixTile()
             null -> UnknownTile(spec.type)
-        }
-    }
+        } }
+    } }
 }
 
 // --------------------------------------------------------------------- clock
@@ -96,14 +109,14 @@ fun ClockTile() {
     Column(Modifier.fillMaxSize()) {
         Text(
             text = now.toLocalTime().format(HOUR_MINUTE),
-            color = Palette.current.fgBright,
+            color = Palette.tile.fgBright,
             fontSize = Metrics.clockSize,
             fontWeight = FontWeight.Bold,
             fontFamily = AdosauraMono,
         )
         Text(
             text = now.toLocalDate().format(DATE_LINE),
-            color = Palette.current.muted,
+            color = Palette.tile.muted,
             fontSize = Metrics.smallSize,
             fontFamily = AdosauraMono,
         )
@@ -119,14 +132,14 @@ fun ClockCalTile() {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 text = now.toLocalTime().format(HOUR_MINUTE),
-                color = Palette.current.fgBright,
+                color = Palette.tile.fgBright,
                 fontSize = Metrics.clockSize,
                 fontWeight = FontWeight.Bold,
                 fontFamily = AdosauraMono,
             )
             Text(
                 text = now.toLocalTime().format(SECOND),
-                color = Palette.current.accent,
+                color = Palette.tile.accent,
                 fontSize = Metrics.bodySize,
                 fontFamily = AdosauraMono,
                 modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
@@ -134,7 +147,7 @@ fun ClockCalTile() {
         }
         Text(
             text = now.toLocalDate().format(DATE_LINE),
-            color = Palette.current.muted,
+            color = Palette.tile.muted,
             fontSize = Metrics.smallSize,
             fontFamily = AdosauraMono,
         )
@@ -168,7 +181,7 @@ fun CalendarTile(compact: Boolean) {
         if (!compact) {
             Text(
                 text = now.toLocalDate().format(MONTH_LINE),
-                color = Palette.current.fg,
+                color = Palette.tile.fg,
                 fontSize = Metrics.bodySize,
                 fontWeight = FontWeight.Bold,
                 fontFamily = AdosauraMono,
@@ -204,7 +217,7 @@ private fun MonthGrid(
             WEEKDAYS.forEach { day ->
                 Text(
                     text = day,
-                    color = Palette.current.muted,
+                    color = Palette.tile.muted,
                     fontSize = Metrics.titleSize,
                     fontFamily = AdosauraMono,
                     textAlign = TextAlign.Center,
@@ -228,7 +241,7 @@ private fun MonthGrid(
                         val isToday = month.atDay(cell) == today
                         Text(
                             text = cell.toString(),
-                            color = if (isToday) Palette.current.accentBright else Palette.current.fg,
+                            color = if (isToday) Palette.tile.accentBright else Palette.tile.fg,
                             fontSize = Metrics.smallSize,
                             fontFamily = AdosauraMono,
                             fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
@@ -273,7 +286,7 @@ fun AppListTile(
             if (rows.isEmpty()) {
                 Text(
                     text = "no apps in \"$group\"",
-                    color = Palette.current.dim,
+                    color = Palette.tile.dim,
                     fontSize = Metrics.smallSize,
                     fontFamily = AdosauraMono,
                 )
@@ -283,7 +296,7 @@ fun AppListTile(
             rows.forEach { entry ->
                 Text(
                     text = Labels.split(names[entry.pkg] ?: entry.label, cols).joinToString("\n"),
-                    color = Palette.current.fg,
+                    color = Palette.tile.fg,
                     fontSize = Metrics.bodySize,
                     fontFamily = AdosauraMono,
                     softWrap = false,
@@ -317,14 +330,14 @@ private fun StatRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth()) {
         Text(
             text = label,
-            color = Palette.current.dim,
+            color = Palette.tile.dim,
             fontSize = Metrics.smallSize,
             fontFamily = AdosauraMono,
             modifier = Modifier.weight(1f),
         )
         Text(
             text = value,
-            color = Palette.current.fg,
+            color = Palette.tile.fg,
             fontSize = Metrics.smallSize,
             fontFamily = AdosauraMono,
         )
@@ -338,7 +351,7 @@ private fun StatRow(label: String, value: String) {
 fun UnknownTile(type: String) {
     Text(
         text = "? $type",
-        color = Palette.current.red,
+        color = Palette.tile.red,
         fontSize = Metrics.bodySize,
         fontFamily = AdosauraMono,
     )

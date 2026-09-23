@@ -56,6 +56,12 @@ data class TileSpec(
     val h: Int = 1,
     /** 1-based source line in layout.conf, or 0 for a tile created in memory. */
     val line: Int = 0,
+    /** Pane colour: a palette key (`red`, `accent`) or six hex digits. Null = theme. */
+    val bg: String? = null,
+    /** Text colour, same forms as [bg]. */
+    val fg: String? = null,
+    /** Text size in percent of normal, 100 = unchanged. */
+    val size: Int = 100,
 )
 
 data class LayoutConfig(
@@ -94,7 +100,22 @@ object LayoutConfigParser {
                 problems += ConfigProblem(number, line, reason)
             }
 
-            val parts = line.split(WHITESPACE)
+            // `key=value` style tokens may follow the numbers, in any order.
+            val allParts = line.split(WHITESPACE)
+            val parts = allParts.filter { '=' !in it }
+            val style = allParts.filter { '=' in it }.associate { it.substringBefore('=').lowercase() to it.substringAfter('=') }
+            var bg: String? = null
+            var fg: String? = null
+            var size = 100
+            style.forEach { (key, value) ->
+                when (key) {
+                    "bg" -> bg = TileStyle.colour(value) ?: run { reject("bg: unknown colour '$value'"); null }
+                    "fg" -> fg = TileStyle.colour(value) ?: run { reject("fg: unknown colour '$value'"); null }
+                    "size" -> size = value.toIntOrNull()?.coerceIn(TileStyle.MIN_SIZE, TileStyle.MAX_SIZE)
+                        ?: run { reject("size must be a percent like 120"); 100 }
+                    else -> reject("unknown setting '$key'")
+                }
+            }
             if (parts.size < 3) {
                 reject("needs at least: <page> <row> <type>")
                 return@forEachIndexed
@@ -157,7 +178,7 @@ object LayoutConfigParser {
                 }
             }
 
-            tiles += TileSpec(page, row, type, arg, w, h, number)
+            tiles += TileSpec(page, row, type, arg, w, h, number, bg, fg, size)
         }
 
         // A row has one height. Say so rather than silently picking one.
@@ -193,6 +214,9 @@ object LayoutConfigParser {
         spec.arg?.takeIf { it.isNotEmpty() }?.let { append(':').append(it) }
         append(' ').append(spec.w.coerceIn(MIN_SHARE, MAX_SHARE))
         append(' ').append(spec.h.coerceIn(MIN_SHARE, MAX_SHARE))
+        spec.bg?.let { append(" bg=").append(it) }
+        spec.fg?.let { append(" fg=").append(it) }
+        if (spec.size != 100) append(" size=").append(spec.size)
     }
 
     fun header(): String = buildString {
@@ -205,7 +229,10 @@ object LayoutConfigParser {
         appendLine("# Shares are relative, so making one tile wider shrinks its")
         appendLine("# neighbours. Drag a tile's edge to resize; the app rewrites")
         appendLine("# just that line.")
-        appendLine("# types: clock, calendar, clockcal, apps:<group>, stats")
+        appendLine("# types: clock, calendar, clockcal, apps:<group>, stats, perf, weather, analog, battery, matrix")
+        appendLine("# optional style: bg=<colour> fg=<colour> size=<percent>")
+        appendLine("#   colour: a theme name (red green yellow blue cyan orange accent fg dim)")
+        appendLine("#   or six hex digits without # (# starts a comment): fg=ffd466")
     }
 }
 

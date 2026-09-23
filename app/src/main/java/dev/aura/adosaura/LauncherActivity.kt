@@ -48,6 +48,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import dev.aura.adosaura.config.AppsConfigParser
 import dev.aura.adosaura.config.TileSpec
+import dev.aura.adosaura.config.TileStyle
+import dev.aura.adosaura.theme.resolve
 import dev.aura.adosaura.drawer.DrawerScreen
 import dev.aura.adosaura.switcher.SwitcherScreen
 import dev.aura.adosaura.status.NoticeBar
@@ -72,10 +74,31 @@ class LauncherActivity : ComponentActivity() {
 
     private lateinit var model: LauncherModel
 
+    /** The system photo picker: no storage permission, only the one picture chosen. */
+    private val pickPhoto = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri == null) return@registerForActivityResult
+        val target = minOf(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
+        Thread {
+            val ok = dev.aura.adosaura.ui.Photo.import(this, uri, target)
+            runOnUiThread {
+                if (ok) model.setWallpaper("photo") else model.flash("could not read that photo")
+            }
+        }.start()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         model = LauncherModel(applicationContext)
         model.start()
+        model.pickPhoto = {
+            pickPhoto.launch(
+                androidx.activity.result.PickVisualMediaRequest(
+                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly,
+                ),
+            )
+        }
 
         // A launcher is on screen every time the phone is looked at; letting
         // the panel sleep mid-gesture makes it feel dead.
@@ -125,10 +148,14 @@ fun LauncherRoot(model: LauncherModel) {
 
     val bgModifier = when (Palette.wallpaperOverride) {
         "solid" -> Modifier.fillMaxSize().background(Palette.current.bg)
+        "photo" -> Modifier.fillMaxSize().background(Palette.current.bg)
         "transparent" -> Modifier.fillMaxSize() // Default system wallpaper shows through
         else -> Modifier.fillMaxSize()
     }
     Box(bgModifier) {
+        if (Palette.wallpaperOverride == "photo") {
+            dev.aura.adosaura.ui.PhotoBackground(Palette.photoStamp)
+        }
         Column(Modifier.fillMaxSize()) {
             val tick = rememberTick()
             val battery = rememberBatteryPercent()
@@ -351,6 +378,10 @@ private fun EmptyPageHint() {
 
 @Composable
 private fun TileMenu(model: LauncherModel, spec: TileSpec) {
+    when (model.tileMenuPage) {
+        "style" -> return TileStyleMenu(model, spec)
+        "bg", "fg" -> return TileColourMenu(model, spec, model.tileMenuPage!!)
+    }
     MenuOverlay(onDismiss = { model.dismissMenus() }) {
         TextMenu(
             title = "tile",
@@ -385,6 +416,7 @@ private fun TileMenu(model: LauncherModel, spec: TileSpec) {
                     model.resizeEnd()
                     model.dismissMenus()
                 },
+                MenuItem("style… (colours, text size)") { model.tileMenuPage = "style" },
                 MenuItem("move to page ${spec.page + 2}") {
                     model.moveTileToPage(spec, spec.page + 1)
                     model.dismissMenus()
@@ -407,6 +439,53 @@ private fun TileMenu(model: LauncherModel, spec: TileSpec) {
                 },
                 MenuItem("cancel") { model.dismissMenus() },
             ),
+            onDismiss = { model.dismissMenus() },
+        )
+    }
+}
+
+@Composable
+private fun TileStyleMenu(model: LauncherModel, spec: TileSpec) {
+    MenuOverlay(onDismiss = { model.dismissMenus() }) {
+        TextMenu(
+            title = "tile style · text ${spec.size}%",
+            items = listOf(
+                MenuItem("tile colour…  (${spec.bg ?: "theme"})") { model.tileMenuPage = "bg" },
+                MenuItem("text colour…  (${spec.fg ?: "theme"})") { model.tileMenuPage = "fg" },
+                MenuItem("text bigger") {
+                    model.setTileStyle(spec, spec.bg, spec.fg, TileStyle.step(spec.size, +1))
+                },
+                MenuItem("text smaller") {
+                    model.setTileStyle(spec, spec.bg, spec.fg, TileStyle.step(spec.size, -1))
+                },
+                MenuItem("reset style") { model.setTileStyle(spec, null, null, 100) },
+                MenuItem("back") { model.tileMenuPage = null },
+                MenuItem("done") { model.dismissMenus() },
+            ),
+            onDismiss = { model.dismissMenus() },
+        )
+    }
+}
+
+/** Every colour a tile can take, each row drawn in its own colour. */
+@Composable
+private fun TileColourMenu(model: LauncherModel, spec: TileSpec, which: String) {
+    val palette = Palette.current
+    fun pick(word: String?) {
+        if (which == "bg") model.setTileStyle(spec, word, spec.fg, spec.size)
+        else model.setTileStyle(spec, spec.bg, word, spec.size)
+        model.tileMenuPage = "style"
+    }
+    val words = TileStyle.THEME_KEYS + TileStyle.FIXED.keys
+    MenuOverlay(onDismiss = { model.dismissMenus() }) {
+        TextMenu(
+            title = if (which == "bg") "tile colour" else "text colour",
+            items = listOf(MenuItem("theme default") { pick(null) }) +
+                words.map { name ->
+                    val word = TileStyle.FIXED[name] ?: name
+                    MenuItem(name, swatch = palette.resolve(word)) { pick(word) }
+                } +
+                MenuItem("back") { model.tileMenuPage = "style" },
             onDismiss = { model.dismissMenus() },
         )
     }
@@ -440,6 +519,10 @@ private fun ThemeMenu(model: LauncherModel) {
                     model.setWallpaper("transparent")
                     dev.aura.adosaura.switcher.Optimizer.pickWallpaper(context)
                     model.dismissMenus()
+                },
+                MenuItem("bg: photo from gallery…") {
+                    model.dismissMenus()
+                    model.pickPhoto()
                 },
                 MenuItem("bg: solid color") {
                     model.setWallpaper("solid")
@@ -560,6 +643,18 @@ private fun AddMenu(model: LauncherModel) {
                 },
                 MenuItem("weather") {
                     model.addTile(TileSpec(page, model.layout.rows(page).size, "weather"))
+                    model.dismissMenus()
+                },
+                MenuItem("analog clock (animated)") {
+                    model.addTile(TileSpec(page, model.layout.rows(page).size, "analog"))
+                    model.dismissMenus()
+                },
+                MenuItem("battery (animated)") {
+                    model.addTile(TileSpec(page, model.layout.rows(page).size, "battery"))
+                    model.dismissMenus()
+                },
+                MenuItem("matrix rain (animated)") {
+                    model.addTile(TileSpec(page, model.layout.rows(page).size, "matrix"))
                     model.dismissMenus()
                 },
                 MenuItem("apps (pinned)") {

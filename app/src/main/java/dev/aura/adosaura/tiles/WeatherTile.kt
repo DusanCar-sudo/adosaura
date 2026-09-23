@@ -100,15 +100,16 @@ fun WeatherTile(modifier: Modifier = Modifier) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Simple animated sun or cloud based on weather string
                 if (!isError && weather != "loading...") {
+                    val p = Palette.tile
                     Canvas(modifier = Modifier.size(32.dp)) {
                         if (weather.contains("clear")) {
                             drawCircle(
-                                color = Palette.current.yellow,
+                                color = p.yellow,
                                 radius = size.width / 2 * scale,
                                 center = center
                             )
                         } else if (weather.contains("cloud") || weather.contains("overcast") || weather.contains("fog")) {
-                            val cloudColor = Palette.current.fgBright
+                            val cloudColor = p.fgBright
                             drawCircle(
                                 color = cloudColor,
                                 radius = size.width / 3,
@@ -126,33 +127,33 @@ fun WeatherTile(modifier: Modifier = Modifier) {
                             )
                         } else if (weather.contains("rain") || weather.contains("drizzle") || weather.contains("shower")) {
                             drawCircle(
-                                color = Palette.current.dim,
+                                color = p.dim,
                                 radius = size.width / 2.5f,
                                 center = Offset(center.x, center.y - 5f)
                             )
                             drawCircle(
-                                color = Palette.current.blue,
+                                color = p.blue,
                                 radius = 4f,
                                 center = Offset(center.x - 5f, center.y + 10f + (scale * 5f))
                             )
                             drawCircle(
-                                color = Palette.current.blue,
+                                color = p.blue,
                                 radius = 4f,
                                 center = Offset(center.x + 5f, center.y + 15f + (scale * 5f))
                             )
                         } else if (weather.contains("snow")) {
                             drawCircle(
-                                color = Palette.current.fgBright,
+                                color = p.fgBright,
                                 radius = size.width / 2.5f,
                                 center = Offset(center.x, center.y - 5f)
                             )
                             drawCircle(
-                                color = Palette.current.fgBright,
+                                color = p.fgBright,
                                 radius = 3f,
                                 center = Offset(center.x - 5f, center.y + 10f + (scale * 5f))
                             )
                             drawCircle(
-                                color = Palette.current.fgBright,
+                                color = p.fgBright,
                                 radius = 3f,
                                 center = Offset(center.x + 5f, center.y + 15f + (scale * 5f))
                             )
@@ -163,7 +164,7 @@ fun WeatherTile(modifier: Modifier = Modifier) {
                 if (tempC != null) {
                     Text(
                         text = "${tempC}°",
-                        color = Palette.current.fgBright,
+                        color = Palette.tile.fgBright,
                         fontSize = Metrics.clockSize * 0.75f,
                         softWrap = false,
                         fontFamily = AdosauraMono,
@@ -183,7 +184,7 @@ fun WeatherTile(modifier: Modifier = Modifier) {
                     text = text,
                     textAlign = TextAlign.Center,
                     lineHeight = size,
-                    color = if (isError) Palette.current.red else Palette.current.accent,
+                    color = if (isError) Palette.tile.red else Palette.tile.accent,
                     fontSize = size,
                     fontFamily = AdosauraMono,
                 )

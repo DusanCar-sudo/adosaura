@@ -2,6 +2,9 @@ package dev.aura.adosaura.theme
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 
@@ -104,7 +107,48 @@ data class ThemePalette(
  * names `aura-os-theme` reads on the laptop. If a colour changes there, it
  * changes here too.
  */
+/** A tile's own palette, set by its bg=/fg= style. Null outside a tile. */
+val LocalTilePalette = staticCompositionLocalOf<ThemePalette?> { null }
+
+/** A style colour word (`red`, `ffd466`) as a colour from [p], or null. */
+fun ThemePalette.resolve(word: String?): Color? = when (word) {
+    null -> null
+    "accent" -> accent
+    "fg" -> fg
+    "dim" -> dim
+    "red" -> red
+    "green" -> green
+    "yellow" -> yellow
+    "blue" -> blue
+    "cyan" -> cyan
+    "orange" -> orange
+    else -> word.toLongOrNull(16)?.let { Color(it or 0xFF000000L) }
+}
+
+/**
+ * This palette with a tile's overrides: [bg] repaints the pane, [fg] every
+ * text colour (dimmer shades keep their place in the hierarchy).
+ */
+fun ThemePalette.styled(bg: String?, fg: String?): ThemePalette {
+    val b = resolve(bg)
+    val f = resolve(fg)
+    if (b == null && f == null) return this
+    return copy(
+        bgAlt = b ?: this.bgAlt,
+        fg = f ?: this.fg,
+        fgBright = f ?: this.fgBright,
+        accent = f ?: this.accent,
+        accentBright = f ?: this.accentBright,
+        muted = f?.copy(alpha = 0.75f) ?: this.muted,
+        dim = f?.copy(alpha = 0.5f) ?: this.dim,
+    )
+}
+
 object Palette {
+
+    /** Inside a tile: that tile's palette. Everywhere else: the theme. */
+    val tile: ThemePalette
+        @Composable @ReadOnlyComposable get() = LocalTilePalette.current ?: current
 
     var current by mutableStateOf(ThemePalette.fallback())
         private set
@@ -142,8 +186,12 @@ object Palette {
     
     var wallpaperOverride by mutableStateOf<String?>(null)
         
-    fun applyWallpaperOverride(type: String?) {
+    /** background.jpg's modification time, so a new photo is decoded again. */
+    var photoStamp by mutableStateOf(0L)
+
+    fun applyWallpaperOverride(type: String?, stamp: Long = 0L) {
         wallpaperOverride = type
+        photoStamp = stamp
     }
 
     /** `look`'s `crt=on`: scanlines and a vignette over the whole launcher. */

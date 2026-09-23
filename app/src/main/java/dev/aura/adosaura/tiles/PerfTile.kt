@@ -136,7 +136,7 @@ fun PerfTile(modifier: Modifier = Modifier) {
         // CPU status line
         Text(
             text = (if (cpuKnown) "cpu $currentCpuPct%" else "cpu ?") + "  ·  $temp",
-            color = Palette.current.accent,
+            color = Palette.tile.accent,
             fontSize = 12.sp,
             fontFamily = AdosauraMono,
         )
@@ -150,7 +150,7 @@ fun PerfTile(modifier: Modifier = Modifier) {
         // RAM status line
         Text(
             text = "ram $currentRamPct%  ·  $ramUsedStr / $ramTotalStr",
-            color = Palette.current.cyan,
+            color = Palette.tile.cyan,
             fontSize = 12.sp,
             fontFamily = AdosauraMono,
         )
@@ -169,6 +169,7 @@ private fun MatrixGraph(
     history: List<Float>,
     modifier: Modifier = Modifier,
 ) {
+    val p = Palette.tile
     Canvas(modifier = modifier.fillMaxSize()) {
         if (history.isEmpty()) return@Canvas
         val numCols = history.size
@@ -187,11 +188,11 @@ private fun MatrixGraph(
                 val y = size.height - (seg + 1) * segTotal
                 val fraction = seg.toFloat() / maxSegments
                 val segColor = when {
-                    fraction < 0.28f -> Palette.current.accent
-                    fraction < 0.52f -> Palette.current.cyan
-                    fraction < 0.72f -> Palette.current.green
-                    fraction < 0.88f -> Palette.current.yellow
-                    else -> Palette.current.red
+                    fraction < 0.28f -> p.accent
+                    fraction < 0.52f -> p.cyan
+                    fraction < 0.72f -> p.green
+                    fraction < 0.88f -> p.yellow
+                    else -> p.red
                 }
                 drawRect(
                     color = segColor,

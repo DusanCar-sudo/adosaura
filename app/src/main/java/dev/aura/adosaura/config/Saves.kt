@@ -16,6 +16,7 @@ object Saves {
         ConfigFiles.THEME_NAME,
         ConfigFiles.LOOK_NAME,
         ConfigFiles.APPS_NAME,
+        ConfigFiles.BACKGROUND_NAME,
     )
 
     /** Written automatically before every load, so a load can be undone. */

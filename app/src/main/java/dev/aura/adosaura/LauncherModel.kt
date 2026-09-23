@@ -17,6 +17,7 @@ import dev.aura.adosaura.config.LayoutConfig
 import dev.aura.adosaura.config.LayoutConfigParser
 import dev.aura.adosaura.config.LayoutDocument
 import dev.aura.adosaura.config.TileSpec
+import dev.aura.adosaura.config.TileStyle
 import dev.aura.adosaura.drawer.AppRepository
 import dev.aura.adosaura.switcher.Recents
 import kotlinx.coroutines.CoroutineScope
@@ -60,6 +61,12 @@ class LauncherModel(private val context: Context) {
     /** The two modal text menus. Only one can be open at a time. */
     var editingTile by mutableStateOf<TileSpec?>(null)
         private set
+
+    /** Opens the system photo picker; set by the activity. */
+    var pickPhoto: () -> Unit = {}
+
+    /** Which page of the tile menu is showing: null, "style", "bg" or "fg". */
+    var tileMenuPage by mutableStateOf<String?>(null)
     var addMenuOpen by mutableStateOf(false)
         private set
     var themeMenuOpen by mutableStateOf(false)
@@ -156,7 +163,10 @@ class LauncherModel(private val context: Context) {
         notices = snapshot.notices
         loading = false
         dev.aura.adosaura.theme.Palette.apply(dev.aura.adosaura.theme.Themes.load(context, snapshot.themeName, snapshot.panelAlpha))
-        dev.aura.adosaura.theme.Palette.applyWallpaperOverride(snapshot.wallpaperSetting)
+        dev.aura.adosaura.theme.Palette.applyWallpaperOverride(
+            snapshot.wallpaperSetting,
+            dev.aura.adosaura.ui.Photo.file.lastModified(),
+        )
         dev.aura.adosaura.theme.Palette.crt = snapshot.crt
     }
 
@@ -354,6 +364,19 @@ class LauncherModel(private val context: Context) {
         reload()
     }
 
+    /**
+     * Restyle one tile. The menu stays open on the rewritten tile, so "text
+     * bigger" can be tapped again while watching the tile grow.
+     */
+    fun setTileStyle(spec: TileSpec, bg: String?, fg: String?, size: Int) {
+        val text = ConfigFiles.read(ConfigFiles.layout) ?: return
+        val next = spec.copy(bg = bg, fg = fg, size = size.coerceIn(TileStyle.MIN_SIZE, TileStyle.MAX_SIZE))
+        ConfigFiles.write(ConfigFiles.layout, LayoutDocument(text).withTile(next))
+        reload()
+        editingTile = layout.tiles.firstOrNull { it.line == spec.line } ?: next
+        activeTile = editingTile
+    }
+
     fun moveTileToPage(spec: TileSpec, page: Int) {
         val text = ConfigFiles.read(ConfigFiles.layout) ?: return
         ConfigFiles.write(
@@ -467,7 +490,7 @@ class LauncherModel(private val context: Context) {
     private var flashed: String? = null
 
     /** A one-off line in the status strip that replaces the last one and fades after [ms] (0 = stays). */
-    private fun flash(text: String, ms: Long = 4000) {
+    fun flash(text: String, ms: Long = 4000) {
         scope.launch {
             kotlinx.coroutines.delay(400) // after a reload publishes
             withContext(Dispatchers.Main) {
@@ -512,13 +535,14 @@ class LauncherModel(private val context: Context) {
         newLook["wallpaper"] = type
         // Nearly solid panes hide the wallpaper completely, so showing it means glass.
         val alpha = newLook["panel_alpha"]?.toIntOrNull() ?: 85
-        if (type == "transparent" && alpha > 70) newLook["panel_alpha"] = "70"
+        if (type != "solid" && alpha > 70) newLook["panel_alpha"] = "70"
         ConfigFiles.write(ConfigFiles.look, newLook.map { "${it.key}=${it.value}" }.joinToString("\n"))
         reload()
     }
 
     fun dismissMenus() {
         editingTile = null
+        tileMenuPage = null
         addMenuOpen = false
         themeMenuOpen = false
         savesMenuOpen = false

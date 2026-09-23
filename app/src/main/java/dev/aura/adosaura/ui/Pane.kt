@@ -60,25 +60,26 @@ fun Pane(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Box(modifier = modifier) {
+        val glow = Palette.tile.accent
         val borderMod = if (isActive) {
             Modifier
                 .drawBehind {
                     // Outer glow in theme accent color
                     drawRect(
-                        color = Palette.current.accent.copy(alpha = 0.35f),
+                        color = glow.copy(alpha = 0.35f),
                         style = Stroke(width = 3.dp.toPx())
                     )
                 }
-                .border(1.dp, Palette.current.accent)
+                .border(1.dp, Palette.tile.accent)
         } else {
-            Modifier.border(Metrics.border, Palette.current.border)
+            Modifier.border(Metrics.border, Palette.tile.border)
         }
         
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .then(borderMod)
-                .background(Palette.current.bgAlt.copy(alpha = dev.aura.adosaura.theme.Palette.current.panelAlpha))
+                .background(Palette.tile.bgAlt.copy(alpha = dev.aura.adosaura.theme.Palette.tile.panelAlpha))
                 .pointerInput(onTitleLongPress, onSelect) {
                     detectTapGestures(
                         onTap = { onSelect?.invoke() },
@@ -98,7 +99,7 @@ fun Pane(
             ) {
                 Text(
                     text = "─ $title ─",
-                    color = if (isActive) Palette.current.accent else Palette.current.dim,
+                    color = if (isActive) Palette.tile.accent else Palette.tile.dim,
                     fontSize = Metrics.titleSize,
                     fontFamily = AdosauraMono,
                     fontWeight = FontWeight.Bold,
@@ -166,7 +167,7 @@ private fun EdgeHandle(
     var isDragging by remember { mutableStateOf(false) }
 
     val handleHighlight = if (isDragging) {
-        Modifier.background(Palette.current.accent.copy(alpha = 0.40f))
+        Modifier.background(Palette.tile.accent.copy(alpha = 0.40f))
     } else Modifier
 
     Box(

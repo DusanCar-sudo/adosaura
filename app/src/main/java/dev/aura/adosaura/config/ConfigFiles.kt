@@ -20,6 +20,7 @@ object ConfigFiles {
     const val LAYOUT_NAME = "layout.conf"
     const val THEME_NAME = "theme"
     const val LOOK_NAME = "look"
+    const val BACKGROUND_NAME = "background.jpg"
 
     val dir: File get() = File(Environment.getExternalStorageDirectory(), DIR_NAME)
     val apps: File get() = File(dir, APPS_NAME)

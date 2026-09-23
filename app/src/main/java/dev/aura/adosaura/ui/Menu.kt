@@ -8,6 +8,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -21,6 +28,8 @@ import dev.aura.adosaura.theme.Palette
 /** One row of a [TextMenu]. */
 data class MenuItem(
     val label: String,
+    /** A colour swatch drawn before the label, for colour pickers. */
+    val swatch: Color? = null,
     val action: () -> Unit,
 )
 
@@ -44,6 +53,8 @@ fun TextMenu(
             .pointerInput(onDismiss) {
                 detectTapGestures(onTap = { onDismiss() })
             }
+            .heightIn(max = 640.dp)
+            .verticalScroll(rememberScrollState())
             .padding(vertical = Metrics.padV),
     ) {
         Text(
@@ -57,7 +68,10 @@ fun TextMenu(
 
         items.forEach { item ->
             Text(
-                text = item.label,
+                text = buildAnnotatedString {
+                    item.swatch?.let { withStyle(SpanStyle(color = it)) { append("██ ") } }
+                    append(item.label)
+                },
                 color = Palette.current.fg,
                 fontSize = Metrics.bodySize,
                 fontFamily = AdosauraMono,

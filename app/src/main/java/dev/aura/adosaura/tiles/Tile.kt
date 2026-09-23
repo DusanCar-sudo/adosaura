@@ -28,6 +28,15 @@ enum class TileType(val id: String) {
 
     /** Current weather and temperature. */
     WEATHER("weather"),
+
+    /** A round clock with a sweeping second hand. Animated. */
+    ANALOG("analog"),
+
+    /** Battery as sloshing liquid, bubbles while charging. Animated. */
+    BATTERY("battery"),
+
+    /** Falling columns of glyphs. Animated, decorative. */
+    MATRIX("matrix"),
     ;
 
     companion object {
@@ -54,5 +63,8 @@ fun titleOf(spec: TileSpec): String {
         TileType.STATS -> "status"
         TileType.PERF -> "performance"
         TileType.WEATHER -> "weather"
+        TileType.ANALOG -> "clock"
+        TileType.BATTERY -> "battery"
+        TileType.MATRIX -> "matrix"
     }
 }

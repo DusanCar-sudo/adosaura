@@ -93,12 +93,33 @@ result that does not add up, so a detection bug can never cost you the file.
 | --- | --- |
 | `page` | 0-based page; pages exist implicitly up to the highest one |
 | `zone` | `top` = the horizontal row across the top · `main` = the column below |
-| `type` | `clock`, `calendar`, `clockcal`, `apps:<group>`, `stats` |
+| `type` | `clock`, `calendar`, `clockcal`, `apps:<group>`, `stats`, `perf`, `weather`, and the animated `analog`, `battery`, `matrix` |
 | `weight` | share of the zone's axis. In `main` it also spans slots, so `2` is the tall middle tile |
 | `span` | optional multiplier on weight (`1 span 2` = `2 weight`) |
 
 Unknown types render as `? type` so a typo is visible instead of silently
 eating a slot.
+
+Any tile can carry its own style after the numbers, in any order:
+
+```ini
+0 0 clock   1 1 bg=0f1f3a fg=ffd466 size=140
+0 1 weather 1 1 fg=cyan
+```
+
+| token | meaning |
+| --- | --- |
+| `bg=` | the tile's background: a theme colour name or six hex digits (no `#` — it starts a comment) |
+| `fg=` | every text colour in the tile; the dimmer shades become faded versions of it |
+| `size=` | text size in percent, 60–200 |
+
+Theme names (`red`, `accent`, …) follow a theme change; hex stays fixed. On the
+phone: long-press a tile title → `style…` → tile colour, text colour, text
+bigger / smaller, reset.
+
+The animated tiles, `analog` (a sweeping second hand), `battery` (the charge as
+liquid, with bubbles while charging) and `matrix` (falling glyphs), drop to one
+frame a second in eco mode and stop completely when the launcher is off screen.
 
 ### `look` — weather location override
 
@@ -132,6 +153,11 @@ theme and pane style, but keeps your apps.conf and weather location:
 
 `crt=on` in `look` works with any theme; `theme...` → `crt effect` toggles it.
 
+`theme...` → `bg: photo from gallery…` opens the system photo picker (no
+storage permission needed). The picture is scaled to the screen, copied to
+`background.jpg` next to the other files, and `look` gets `wallpaper=photo`.
+A save includes the photo.
+
 When battery saver is on, or the battery is at 20% or less and unplugged, the
 launcher goes eco: the performance tile polls every 5 s instead of every
 second, the CRT band stops rolling, and `clean` reads `clean·eco`. Each save is a plain folder: rename it, copy it
@@ -145,7 +171,7 @@ to another phone, or edit it like the live files.
 | `add` → `saves...` | save this home screen, or load / overwrite / delete a saved one |
 | `apps` (top right) | the app drawer |
 | drag a tile's `↘` | resize it along its zone's axis |
-| long-press a tile title | bigger / smaller / move to page / remove |
+| long-press a tile title | bigger / smaller / style (colours, text size) / move to page / remove |
 | long-press an app row | open / app info / hide |
 | swipe left and right | move between pages |
 | `Home` again | collapse to page 0 and close the drawer |
@@ -187,7 +213,7 @@ what Phase 2 (no root) covers and what Phase 3 (rooted) would add.
         LauncherModel.kt      all state, and every write back to the files
         config/               parsers + file IO — pure Kotlin, unit tested
         tiles/  drawer/  status/  ui/
-    app/src/test/java/         85 tests over the file formats, labels, saves and presets
+    app/src/test/java/         90 tests over the file formats, tile styles, labels, saves and presets
     docs/DESIGN.md             the design system and the phase boundaries
 
 ## Licence
