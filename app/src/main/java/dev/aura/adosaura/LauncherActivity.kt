@@ -380,7 +380,7 @@ private fun EmptyPageHint() {
 private fun TileMenu(model: LauncherModel, spec: TileSpec) {
     when (model.tileMenuPage) {
         "style" -> return TileStyleMenu(model, spec)
-        "bg", "fg" -> return TileColourMenu(model, spec, model.tileMenuPage!!)
+        "bg", "fg", "edge" -> return TileColourMenu(model, spec, model.tileMenuPage!!)
     }
     MenuOverlay(onDismiss = { model.dismissMenus() }) {
         TextMenu(
@@ -452,11 +452,12 @@ private fun TileStyleMenu(model: LauncherModel, spec: TileSpec) {
             items = listOf(
                 MenuItem("tile colour…  (${spec.bg ?: "theme"})") { model.tileMenuPage = "bg" },
                 MenuItem("text colour…  (${spec.fg ?: "theme"})") { model.tileMenuPage = "fg" },
+                MenuItem("outline colour…  (${spec.edge ?: "theme"})") { model.tileMenuPage = "edge" },
                 MenuItem("text bigger") {
-                    model.setTileStyle(spec, spec.bg, spec.fg, TileStyle.step(spec.size, +1))
+                    model.setTileStyle(spec, spec.bg, spec.fg, TileStyle.step(spec.size, +1), spec.edge)
                 },
                 MenuItem("text smaller") {
-                    model.setTileStyle(spec, spec.bg, spec.fg, TileStyle.step(spec.size, -1))
+                    model.setTileStyle(spec, spec.bg, spec.fg, TileStyle.step(spec.size, -1), spec.edge)
                 },
                 MenuItem("reset style") { model.setTileStyle(spec, null, null, 100) },
                 MenuItem("back") { model.tileMenuPage = null },
@@ -472,14 +473,17 @@ private fun TileStyleMenu(model: LauncherModel, spec: TileSpec) {
 private fun TileColourMenu(model: LauncherModel, spec: TileSpec, which: String) {
     val palette = Palette.current
     fun pick(word: String?) {
-        if (which == "bg") model.setTileStyle(spec, word, spec.fg, spec.size)
-        else model.setTileStyle(spec, spec.bg, word, spec.size)
+        when (which) {
+            "bg" -> model.setTileStyle(spec, word, spec.fg, spec.size, spec.edge)
+            "fg" -> model.setTileStyle(spec, spec.bg, word, spec.size, spec.edge)
+            else -> model.setTileStyle(spec, spec.bg, spec.fg, spec.size, word)
+        }
         model.tileMenuPage = "style"
     }
     val words = TileStyle.THEME_KEYS + TileStyle.FIXED.keys
     MenuOverlay(onDismiss = { model.dismissMenus() }) {
         TextMenu(
-            title = if (which == "bg") "tile colour" else "text colour",
+            title = when (which) { "bg" -> "tile colour"; "fg" -> "text colour"; else -> "outline colour" },
             items = listOf(MenuItem("theme default") { pick(null) }) +
                 words.map { name ->
                     val word = TileStyle.FIXED[name] ?: name
@@ -527,6 +531,10 @@ private fun ThemeMenu(model: LauncherModel) {
                 MenuItem("bg: solid color") {
                     model.setWallpaper("solid")
                     model.dismissMenus()
+                },
+                MenuItem("tile frame: ${Palette.frame}  (tap to change)") {
+                    val all = LauncherModel.FRAMES
+                    model.setFrame(all[(all.indexOf(Palette.frame) + 1) % all.size])
                 },
                 MenuItem(if (Palette.crt) "crt effect: on" else "crt effect: off") {
                     model.setCrt(!Palette.crt)

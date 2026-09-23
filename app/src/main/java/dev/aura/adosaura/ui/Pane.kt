@@ -25,6 +25,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -57,29 +68,69 @@ fun Pane(
     isActive: Boolean = false,
     onSelect: (() -> Unit)? = null,
     onTitleLongPress: (() -> Unit)? = null,
+    /** Outline and glow colour; null = the tile's accent. */
+    edge: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Box(modifier = modifier) {
-        val glow = Palette.tile.accent
-        val borderMod = if (isActive) {
-            Modifier
+    val p = Palette.tile
+    val frame = Palette.frame
+    val line = edge ?: p.accent
+    val glowing = frame != "line"
+    // Glow needs room: each pane steps in, so two neighbours' glows meet in the gap.
+    val inset = if (glowing) GLOW_INSET else 0.dp
+    val strength = glowStrength(frame, isActive)
+
+    Box(
+        modifier = modifier.drawBehind {
+            if (!glowing) return@drawBehind
+            val i = inset.toPx()
+            val rings = 7
+            for (k in 1..rings) {
+                val grow = i * k / rings
+                val fade = 1f - k / (rings + 1f)
+                drawRect(
+                    color = line.copy(alpha = strength * 0.22f * fade * fade),
+                    topLeft = Offset(i - grow, i - grow),
+                    size = Size(size.width - 2 * (i - grow), size.height - 2 * (i - grow)),
+                    style = Stroke(width = i / rings + 0.5f),
+                )
+            }
+        },
+    ) {
+        val borderMod = when {
+            glowing -> Modifier
                 .drawBehind {
-                    // Outer glow in theme accent color
-                    drawRect(
-                        color = glow.copy(alpha = 0.35f),
-                        style = Stroke(width = 3.dp.toPx())
-                    )
+                    // A faint inner glow, then the crisp outer line on top.
+                    for (k in 1..3) {
+                        val d = k * 2.dp.toPx()
+                        drawRect(
+                            color = line.copy(alpha = strength * 0.10f / k),
+                            topLeft = Offset(d / 2, d / 2),
+                            size = Size(size.width - d, size.height - d),
+                            style = Stroke(width = d),
+                        )
+                    }
                 }
-                .border(1.dp, Palette.tile.accent)
-        } else {
-            Modifier.border(Metrics.border, Palette.tile.border)
+                .border(if (isActive) 1.5.dp else 1.dp, line.copy(alpha = 0.55f + 0.45f * strength))
+            isActive -> Modifier
+                .drawBehind {
+                    drawRect(color = line.copy(alpha = 0.35f), style = Stroke(width = 3.dp.toPx()))
+                }
+                .border(1.dp, line)
+            else -> Modifier.border(Metrics.border, p.border)
         }
-        
+        val pane = p.bgAlt.copy(alpha = p.panelAlpha)
+        val fill = if (glowing) {
+            // A slight sheen from the top edge, so the pane reads as lit glass.
+            Modifier.background(Brush.verticalGradient(listOf(lerp(pane, line.copy(alpha = pane.alpha), 0.10f), pane)))
+        } else Modifier.background(pane)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(inset)
                 .then(borderMod)
-                .background(Palette.tile.bgAlt.copy(alpha = dev.aura.adosaura.theme.Palette.tile.panelAlpha))
+                .then(fill)
                 .pointerInput(onTitleLongPress, onSelect) {
                     detectTapGestures(
                         onTap = { onSelect?.invoke() },
@@ -99,7 +150,11 @@ fun Pane(
             ) {
                 Text(
                     text = "─ $title ─",
-                    color = if (isActive) Palette.tile.accent else Palette.tile.dim,
+                    color = when {
+                        isActive -> line
+                        glowing -> line.copy(alpha = 0.8f)
+                        else -> p.dim
+                    },
                     fontSize = Metrics.titleSize,
                     fontFamily = AdosauraMono,
                     fontWeight = FontWeight.Bold,
@@ -148,6 +203,23 @@ fun Pane(
 }
 
 private val EDGE = 16.dp
+
+/** How far a glowing pane steps in from its cell; the glow fills that margin. */
+private val GLOW_INSET = 5.dp
+
+/** 0..1: how bright the glow is. `neon` breathes, unless the phone is in eco mode. */
+@Composable
+private fun glowStrength(frame: String, isActive: Boolean): Float {
+    val base = if (isActive) 1f else 0.55f
+    if (frame != "neon" || Palette.eco) return base
+    val breath by rememberInfiniteTransition(label = "neon").animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "neon",
+    )
+    return if (isActive) 1f else base * breath + 0.25f
+}
 
 /**
  * One draggable edge handle. Requires a long-press before drag begins in order

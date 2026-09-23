@@ -168,6 +168,7 @@ class LauncherModel(private val context: Context) {
             dev.aura.adosaura.ui.Photo.file.lastModified(),
         )
         dev.aura.adosaura.theme.Palette.crt = snapshot.crt
+        dev.aura.adosaura.theme.Palette.frame = snapshot.frame
     }
 
     private fun readSnapshot(): Snapshot {
@@ -242,6 +243,7 @@ class LauncherModel(private val context: Context) {
         val panelAlpha = lookKv["panel_alpha"]?.toIntOrNull()?.let { it / 100f } ?: 0.85f
         val wallpaperSetting = lookKv["wallpaper"]
         val crt = lookKv["crt"] == "on"
+        val frame = lookKv["frame"]?.takeIf { it in FRAMES } ?: "glow"
 
         // layout.conf: ship the documented default until one exists.
         if (ConfigFiles.read(ConfigFiles.layout) == null) {
@@ -254,7 +256,7 @@ class LauncherModel(private val context: Context) {
             notes += "${parsedLayout.problems.size} layout.conf line(s) skipped"
         }
 
-        return Snapshot(newLabels, liveApps, parsedLayout, notes, themeName, panelAlpha, wallpaperSetting, crt)
+        return Snapshot(newLabels, liveApps, parsedLayout, notes, themeName, panelAlpha, wallpaperSetting, crt, frame)
     }
 
     private data class Snapshot(
@@ -266,6 +268,7 @@ class LauncherModel(private val context: Context) {
         val panelAlpha: Float,
         val wallpaperSetting: String?,
         val crt: Boolean,
+        val frame: String,
     )
 
     /**
@@ -368,9 +371,9 @@ class LauncherModel(private val context: Context) {
      * Restyle one tile. The menu stays open on the rewritten tile, so "text
      * bigger" can be tapped again while watching the tile grow.
      */
-    fun setTileStyle(spec: TileSpec, bg: String?, fg: String?, size: Int) {
+    fun setTileStyle(spec: TileSpec, bg: String?, fg: String?, size: Int, edge: String? = null) {
         val text = ConfigFiles.read(ConfigFiles.layout) ?: return
-        val next = spec.copy(bg = bg, fg = fg, size = size.coerceIn(TileStyle.MIN_SIZE, TileStyle.MAX_SIZE))
+        val next = spec.copy(bg = bg, fg = fg, edge = edge, size = size.coerceIn(TileStyle.MIN_SIZE, TileStyle.MAX_SIZE))
         ConfigFiles.write(ConfigFiles.layout, LayoutDocument(text).withTile(next))
         reload()
         editingTile = layout.tiles.firstOrNull { it.line == spec.line } ?: next
@@ -521,6 +524,14 @@ class LauncherModel(private val context: Context) {
         reload()
     }
 
+    fun setFrame(style: String) {
+        val text = ConfigFiles.read(ConfigFiles.look).orEmpty()
+        val newLook = dev.aura.adosaura.config.KeyValueParser.parse(text).entries.toMutableMap()
+        newLook["frame"] = style
+        ConfigFiles.write(ConfigFiles.look, newLook.map { "${it.key}=${it.value}" }.joinToString("\n"))
+        reload()
+    }
+
     fun setCrt(on: Boolean) {
         val text = ConfigFiles.read(ConfigFiles.look).orEmpty()
         val newLook = dev.aura.adosaura.config.KeyValueParser.parse(text).entries.toMutableMap()
@@ -596,6 +607,8 @@ class LauncherModel(private val context: Context) {
     }
 
     companion object {
+        /** Tile frame styles, in the order the theme menu cycles them. */
+        val FRAMES = listOf("glow", "neon", "line")
         const val GROUP_PINNED = "pinned"
         const val PINNED_COUNT = 6
         const val MAX_WEIGHT = 8

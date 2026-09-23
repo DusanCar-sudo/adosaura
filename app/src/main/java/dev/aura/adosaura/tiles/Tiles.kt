@@ -30,6 +30,7 @@ import dev.aura.adosaura.theme.Metrics
 import dev.aura.adosaura.theme.Palette
 import dev.aura.adosaura.theme.LocalTilePalette
 import dev.aura.adosaura.theme.styled
+import dev.aura.adosaura.theme.resolve
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -74,6 +75,7 @@ fun TileView(
         onResizeEnd = onResizeEnd,
         onSelect = onSelect,
         onTitleLongPress = onEdit,
+        edge = palette.resolve(spec.edge),
     ) {
         // size=N scales this tile's text only; the title bar stays put.
         CompositionLocalProvider(

@@ -111,6 +111,7 @@ Any tile can carry its own style after the numbers, in any order:
 | --- | --- |
 | `bg=` | the tile's background: a theme colour name or six hex digits (no `#` — it starts a comment) |
 | `fg=` | every text colour in the tile; the dimmer shades become faded versions of it |
+| `edge=` | the outline and its glow, same colour forms |
 | `size=` | text size in percent, 60–200 |
 
 Theme names (`red`, `accent`, …) follow a theme change; hex stays fixed. On the
@@ -152,6 +153,11 @@ theme and pane style, but keeps your apps.conf and weather location:
 | `retro` | amber CRT: the `crt` theme plus `crt=on` scanlines, vignette and a rolling band |
 
 `crt=on` in `look` works with any theme; `theme...` → `crt effect` toggles it.
+
+`frame=` in `look` sets how every tile is framed: `glow` (a crisp outline, a
+soft outer glow and a lit-glass sheen; the default), `neon` (the glow slowly
+breathes; still in eco mode) or `line` (the plain Aura OS hairline).
+`theme...` → `tile frame` cycles them. The active tile always glows brightest.
 
 `theme...` → `bg: photo from gallery…` opens the system photo picker (no
 storage permission needed). The picture is scaled to the screen, copied to
@@ -213,7 +219,7 @@ what Phase 2 (no root) covers and what Phase 3 (rooted) would add.
         LauncherModel.kt      all state, and every write back to the files
         config/               parsers + file IO — pure Kotlin, unit tested
         tiles/  drawer/  status/  ui/
-    app/src/test/java/         90 tests over the file formats, tile styles, labels, saves and presets
+    app/src/test/java/         91 tests over the file formats, tile styles, labels, saves and presets
     docs/DESIGN.md             the design system and the phase boundaries
 
 ## Licence

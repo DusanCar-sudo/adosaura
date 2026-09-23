@@ -194,6 +194,9 @@ object Palette {
         photoStamp = stamp
     }
 
+    /** `look`'s `frame=`: `line` (hairline), `glow` (outline + soft glow, default) or `neon` (glow that breathes). */
+    var frame by mutableStateOf("glow")
+
     /** `look`'s `crt=on`: scanlines and a vignette over the whole launcher. */
     var crt by mutableStateOf(false)
 

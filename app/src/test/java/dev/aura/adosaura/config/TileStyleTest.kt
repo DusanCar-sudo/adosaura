@@ -41,4 +41,14 @@ class TileStyleTest {
         assertTrue(TileStyle.colour("#ff0000") == "ff0000")
         assertEquals("0 0 clock 1 1 fg=ff0000", LayoutConfigParser.render(TileSpec(0, 0, "clock", fg = TileStyle.colour("#ff0000"))))
     }
+
+    @Test fun edgeColourRoundTrips() {
+        // "pink" is a menu name, not a colour word: the tile stays, the edge does not.
+        val bad = LayoutConfigParser.parse("0 0 weather 1 1 edge=pink")
+        assertEquals(null, bad.tiles.single().edge)
+        assertEquals(1, bad.problems.size)
+        val back = LayoutConfigParser.parse("0 0 weather 1 1 edge=cyan fg=ff5cd0").tiles.single()
+        assertEquals("cyan", back.edge)
+        assertEquals("0 0 weather 1 1 fg=ff5cd0 edge=cyan", LayoutConfigParser.render(back))
+    }
 }

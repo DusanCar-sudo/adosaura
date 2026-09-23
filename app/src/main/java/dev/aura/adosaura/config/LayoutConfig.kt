@@ -62,6 +62,8 @@ data class TileSpec(
     val fg: String? = null,
     /** Text size in percent of normal, 100 = unchanged. */
     val size: Int = 100,
+    /** Outline and glow colour, same forms as [bg]. Null = the theme accent. */
+    val edge: String? = null,
 )
 
 data class LayoutConfig(
@@ -107,10 +109,12 @@ object LayoutConfigParser {
             var bg: String? = null
             var fg: String? = null
             var size = 100
+            var edge: String? = null
             style.forEach { (key, value) ->
                 when (key) {
                     "bg" -> bg = TileStyle.colour(value) ?: run { reject("bg: unknown colour '$value'"); null }
                     "fg" -> fg = TileStyle.colour(value) ?: run { reject("fg: unknown colour '$value'"); null }
+                    "edge" -> edge = TileStyle.colour(value) ?: run { reject("edge: unknown colour '$value'"); null }
                     "size" -> size = value.toIntOrNull()?.coerceIn(TileStyle.MIN_SIZE, TileStyle.MAX_SIZE)
                         ?: run { reject("size must be a percent like 120"); 100 }
                     else -> reject("unknown setting '$key'")
@@ -178,7 +182,7 @@ object LayoutConfigParser {
                 }
             }
 
-            tiles += TileSpec(page, row, type, arg, w, h, number, bg, fg, size)
+            tiles += TileSpec(page, row, type, arg, w, h, number, bg, fg, size, edge)
         }
 
         // A row has one height. Say so rather than silently picking one.
@@ -216,6 +220,7 @@ object LayoutConfigParser {
         append(' ').append(spec.h.coerceIn(MIN_SHARE, MAX_SHARE))
         spec.bg?.let { append(" bg=").append(it) }
         spec.fg?.let { append(" fg=").append(it) }
+        spec.edge?.let { append(" edge=").append(it) }
         if (spec.size != 100) append(" size=").append(spec.size)
     }
 
@@ -230,7 +235,8 @@ object LayoutConfigParser {
         appendLine("# neighbours. Drag a tile's edge to resize; the app rewrites")
         appendLine("# just that line.")
         appendLine("# types: clock, calendar, clockcal, apps:<group>, stats, perf, weather, analog, battery, matrix")
-        appendLine("# optional style: bg=<colour> fg=<colour> size=<percent>")
+        appendLine("# optional style: bg=<colour> fg=<colour> edge=<colour> size=<percent>")
+        appendLine("#   edge = the outline and its glow (look: frame=line|glow|neon)")
         appendLine("#   colour: a theme name (red green yellow blue cyan orange accent fg dim)")
         appendLine("#   or six hex digits without # (# starts a comment): fg=ffd466")
     }
