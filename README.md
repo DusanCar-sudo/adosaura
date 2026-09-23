@@ -117,7 +117,20 @@ place=belgrade
 `add` → `saves...` → `+ save this screen` copies `layout.conf`, `theme`,
 `look` and `apps.conf` into `saves/home-N/`. Tap a save to load it, overwrite
 it or delete it. Loading first copies the current screen to `saves/previous/`,
-so a load can always be undone. Each save is a plain folder: rename it, copy it
+so a load can always be undone.
+
+The same menu has bundled presets to start from. A preset replaces the tiles,
+theme and pane style, but keeps your apps.conf and weather location:
+
+| preset | what it is |
+| --- | --- |
+| `minimal` | a big clock + calendar and your pinned apps, mono, solid |
+| `dashboard` | status, performance, clock, weather, pinned and all apps on one screen |
+| `focus` | clock and weather over your wallpaper, pinned apps below, nord |
+| `two-pages` | widgets on page 1, every app on page 2, purplerain |
+| `retro` | amber CRT: the `crt` theme plus `crt=on` scanlines, vignette and a rolling band |
+
+`crt=on` in `look` works with any theme; `theme...` → `crt effect` toggles it. Each save is a plain folder: rename it, copy it
 to another phone, or edit it like the live files.
 
 ## Using it
@@ -168,7 +181,7 @@ what Phase 2 (no root) covers and what Phase 3 (rooted) would add.
         LauncherModel.kt      all state, and every write back to the files
         config/               parsers + file IO — pure Kotlin, unit tested
         tiles/  drawer/  status/  ui/
-    app/src/test/java/         83 tests over the file formats, labels and saves
+    app/src/test/java/         85 tests over the file formats, labels, saves and presets
     docs/DESIGN.md             the design system and the phase boundaries
 
 ## Licence

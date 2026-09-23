@@ -49,4 +49,23 @@ class SavesTest {
         assertFalse(Saves.load("nope", live, tmp.newFolder("saves")))
         assertEquals("keep", File(live, ConfigFiles.LAYOUT_NAME).readText())
     }
+
+    @Test fun presetLookKeepsTheWeatherLocation() {
+        val merged = KeyValueParser.parse(Saves.mergeLook("lat=16\nlon=108\npanel_alpha=60", "panel_alpha=95\nwallpaper=solid")).entries
+        assertEquals("16", merged["lat"])
+        assertEquals("95", merged["panel_alpha"])
+        assertEquals("solid", merged["wallpaper"])
+    }
+
+    @Test fun everyPresetParsesCleanlyAndUsesABundledTheme() {
+        val assets = File("src/main/assets")
+        Saves.PRESETS.forEach { name ->
+            val dir = File(assets, "presets/$name")
+            val layout = LayoutConfigParser.parse(File(dir, ConfigFiles.LAYOUT_NAME).readText())
+            assertTrue("$name: ${layout.problems}", layout.problems.isEmpty())
+            assertTrue("$name has no tiles", layout.tiles.isNotEmpty())
+            val theme = File(dir, ConfigFiles.THEME_NAME).readText().trim()
+            assertTrue("$name: theme $theme", File(assets, "themes/$theme").isDirectory)
+        }
+    }
 }

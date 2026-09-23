@@ -145,4 +145,7 @@ object Palette {
     fun applyWallpaperOverride(type: String?) {
         wallpaperOverride = type
     }
+
+    /** `look`'s `crt=on`: scanlines and a vignette over the whole launcher. */
+    var crt by mutableStateOf(false)
 }

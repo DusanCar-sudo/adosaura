@@ -157,6 +157,7 @@ class LauncherModel(private val context: Context) {
         loading = false
         dev.aura.adosaura.theme.Palette.apply(dev.aura.adosaura.theme.Themes.load(context, snapshot.themeName, snapshot.panelAlpha))
         dev.aura.adosaura.theme.Palette.applyWallpaperOverride(snapshot.wallpaperSetting)
+        dev.aura.adosaura.theme.Palette.crt = snapshot.crt
     }
 
     private fun readSnapshot(): Snapshot {
@@ -230,6 +231,7 @@ class LauncherModel(private val context: Context) {
         val lookKv = dev.aura.adosaura.config.KeyValueParser.parse(lookText).entries
         val panelAlpha = lookKv["panel_alpha"]?.toIntOrNull()?.let { it / 100f } ?: 0.85f
         val wallpaperSetting = lookKv["wallpaper"]
+        val crt = lookKv["crt"] == "on"
 
         // layout.conf: ship the documented default until one exists.
         if (ConfigFiles.read(ConfigFiles.layout) == null) {
@@ -242,7 +244,7 @@ class LauncherModel(private val context: Context) {
             notes += "${parsedLayout.problems.size} layout.conf line(s) skipped"
         }
 
-        return Snapshot(newLabels, liveApps, parsedLayout, notes, themeName, panelAlpha, wallpaperSetting)
+        return Snapshot(newLabels, liveApps, parsedLayout, notes, themeName, panelAlpha, wallpaperSetting, crt)
     }
 
     private data class Snapshot(
@@ -253,6 +255,7 @@ class LauncherModel(private val context: Context) {
         val themeName: String,
         val panelAlpha: Float,
         val wallpaperSetting: String?,
+        val crt: Boolean,
     )
 
     /**
@@ -449,6 +452,12 @@ class LauncherModel(private val context: Context) {
         flash(if (ok) "loaded $name" else "could not load $name")
     }
 
+    fun applyPreset(name: String) {
+        val ok = dev.aura.adosaura.config.Saves.applyPreset(context, name)
+        reload()
+        flash(if (ok) "loaded $name" else "could not load $name")
+    }
+
     fun deleteHome(name: String) {
         val ok = dev.aura.adosaura.config.Saves.delete(name)
         flash(if (ok) "deleted $name" else "could not delete $name")
@@ -478,6 +487,14 @@ class LauncherModel(private val context: Context) {
         val text = ConfigFiles.read(ConfigFiles.look).orEmpty()
         val newLook = dev.aura.adosaura.config.KeyValueParser.parse(text).entries.toMutableMap()
         newLook["panel_alpha"] = (alpha * 100).toInt().toString()
+        ConfigFiles.write(ConfigFiles.look, newLook.map { "${it.key}=${it.value}" }.joinToString("\n"))
+        reload()
+    }
+
+    fun setCrt(on: Boolean) {
+        val text = ConfigFiles.read(ConfigFiles.look).orEmpty()
+        val newLook = dev.aura.adosaura.config.KeyValueParser.parse(text).entries.toMutableMap()
+        newLook["crt"] = if (on) "on" else "off"
         ConfigFiles.write(ConfigFiles.look, newLook.map { "${it.key}=${it.value}" }.joinToString("\n"))
         reload()
     }

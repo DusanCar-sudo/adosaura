@@ -23,6 +23,15 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -191,6 +200,48 @@ fun LauncherRoot(model: LauncherModel) {
         model.selectedSave?.let { name ->
             SaveMenu(model, name)
         }
+
+        // Drawn last, over menus too, and never takes a touch.
+        if (Palette.crt) CrtOverlay()
+    }
+}
+
+/** Scanlines, a faint rolling band and a dark vignette: an old monitor, over everything. */
+@Composable
+private fun CrtOverlay() {
+    val roll by rememberInfiniteTransition(label = "crt").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(7000, easing = LinearEasing),
+        ),
+        label = "roll",
+    )
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        val line = Color.Black.copy(alpha = 0.45f)
+        var y = 0f
+        while (y < size.height) {
+            drawRect(line, topLeft = Offset(0f, y), size = Size(size.width, 2f))
+            y += 4f
+        }
+        val bandH = size.height / 6f
+        val bandY = roll * (size.height + bandH) - bandH
+        drawRect(
+            Brush.verticalGradient(
+                listOf(Color.Transparent, Palette.current.fg.copy(alpha = 0.08f), Color.Transparent),
+                startY = bandY, endY = bandY + bandH,
+            ),
+            topLeft = Offset(0f, bandY),
+            size = Size(size.width, bandH),
+        )
+        drawRect(
+            Brush.radialGradient(
+                0.35f to Color.Transparent,
+                1f to Color.Black.copy(alpha = 0.78f),
+                center = center,
+                radius = size.maxDimension * 0.58f,
+            ),
+        )
     }
 }
 
@@ -375,6 +426,10 @@ private fun ThemeMenu(model: LauncherModel) {
                     model.setWallpaper("solid")
                     model.dismissMenus()
                 },
+                MenuItem(if (Palette.crt) "crt effect: on" else "crt effect: off") {
+                    model.setCrt(!Palette.crt)
+                    model.dismissMenus()
+                },
                 MenuItem("cancel") { model.dismissMenus() }
             ),
             onDismiss = { model.dismissMenus() },
@@ -394,6 +449,11 @@ private fun SavesMenu(model: LauncherModel) {
                 },
             ) + model.saves.map { name ->
                 MenuItem(name) { model.selectSave(name) }
+            } + dev.aura.adosaura.config.Saves.PRESETS.map { name ->
+                MenuItem("preset: $name") {
+                    model.applyPreset(name)
+                    model.dismissMenus()
+                }
             } + MenuItem("cancel") { model.dismissMenus() },
             onDismiss = { model.dismissMenus() },
         )

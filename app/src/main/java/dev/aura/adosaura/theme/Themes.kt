@@ -23,6 +23,7 @@ object Themes {
         "neon",
         "mono",
         "paper",
+        "crt",
     )
 
     const val DEFAULT = "gruvbox"

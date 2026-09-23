@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -168,14 +171,23 @@ fun WeatherTile(modifier: Modifier = Modifier) {
                     )
                 }
             }
-            Text(
-                text = if (place.isEmpty() || isError) weather else "$weather\n$place",
-                textAlign = TextAlign.Center,
-                lineHeight = Metrics.bodySize,
-                color = if (isError) Palette.current.red else Palette.current.accent,
-                fontSize = Metrics.bodySize,
-                fontFamily = AdosauraMono,
-            )
+            val text = if (place.isEmpty() || isError) weather else "$weather\n$place"
+            // A narrow tile drops to the small font rather than break "thunderstorm" mid-word.
+            val measurer = rememberTextMeasurer()
+            BoxWithConstraints {
+                val longest = text.split('\n', ' ').maxOfOrNull { it.length } ?: 0
+                val bodyCell = measurer.measure("M", TextStyle(fontFamily = AdosauraMono, fontSize = Metrics.bodySize)).size.width
+                val fits = bodyCell == 0 || longest * bodyCell <= constraints.maxWidth
+                val size = if (fits) Metrics.bodySize else Metrics.smallSize
+                Text(
+                    text = text,
+                    textAlign = TextAlign.Center,
+                    lineHeight = size,
+                    color = if (isError) Palette.current.red else Palette.current.accent,
+                    fontSize = size,
+                    fontFamily = AdosauraMono,
+                )
+            }
         }
     }
 }

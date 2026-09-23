@@ -1,5 +1,6 @@
 package dev.aura.adosaura.config
 
+import android.content.Context
 import java.io.File
 
 /**
@@ -65,5 +66,34 @@ object Saves {
         return rest.sortedWith(
             compareBy<String>({ it.substringBeforeLast('-') }, { it.substringAfterLast('-').toIntOrNull() ?: Int.MAX_VALUE }, { it }),
         ) + prev
+    }
+
+    /** Bundled starting points under `assets/presets/<name>/`, in menu order. */
+    val PRESETS = listOf("minimal", "dashboard", "focus", "two-pages", "retro")
+
+    /**
+     * Applies a bundled preset: its layout and theme replace the live ones, its
+     * look keys are merged in (so a weather location survives), and apps.conf
+     * is never touched. The current screen is kept as `previous` first.
+     */
+    fun applyPreset(context: Context, name: String): Boolean = runCatching {
+        fun asset(f: String) = runCatching {
+            context.assets.open("presets/$name/$f").bufferedReader().use { it.readText() }
+        }.getOrNull()
+        val layout = asset(ConfigFiles.LAYOUT_NAME) ?: return false
+        save(PREVIOUS)
+        ConfigFiles.write(ConfigFiles.layout, layout)
+        asset(ConfigFiles.THEME_NAME)?.let { ConfigFiles.write(ConfigFiles.theme, it.trim()) }
+        asset(ConfigFiles.LOOK_NAME)?.let { preset ->
+            ConfigFiles.write(ConfigFiles.look, mergeLook(ConfigFiles.read(ConfigFiles.look).orEmpty(), preset))
+        }
+        true
+    }.getOrDefault(false)
+
+    /** [current] look with every key from [preset] set over it. */
+    fun mergeLook(current: String, preset: String): String {
+        val merged = KeyValueParser.parse(current).entries.toMutableMap()
+        merged.putAll(KeyValueParser.parse(preset).entries)
+        return merged.map { "${it.key}=${it.value}" }.joinToString("\n")
     }
 }
