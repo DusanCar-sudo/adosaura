@@ -81,7 +81,7 @@ compile-clean in isolation but the launcher does not use them:
 `Palette.panelAlpha` (Pane.kt x2, DrawerScreen.kt) or the compile will fail
 with two `Palette` definitions.
 
-## Edge swipes — built and tested, not yet on the phone
+## Edge swipes — on the phone; switched on by hand in Accessibility
 
 Full-swipe control over every app: in from the right edge = Back, in from
 the left edge = Forward (back into the app you just left with an edge Back),
@@ -90,8 +90,8 @@ down along either edge = the switcher over the current app.
 - `gestures/EdgeGesture.kt`: stroke → action, pure. `gestures/AppHistory.kt`: the
   forward stack, pure. Both unit-tested.
 - `gestures/EdgeService.kt`: an accessibility service. It draws two 16dp
-  invisible strips from 12% to 60% of the screen height, clear of the
-  keyboard, and buzzes CONFIRM or REJECT.
+  strips from 12% to 60% of the screen height, clear of the keyboard, each
+  marked by a faint 2dp accent line, and buzzes CONFIRM or REJECT.
 - `switcher/SwitcherActivity.kt`: SwitcherScreen in its own task, so
   closing it returns to the app.
 - Enable: `scripts/adb-grants.sh` appends it to `enabled_accessibility_services`.

@@ -4,6 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.os.SystemClock
 import android.view.Gravity
@@ -12,16 +14,19 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import androidx.compose.ui.graphics.toArgb
+import dev.aura.adosaura.theme.Palette
 import dev.aura.adosaura.switcher.Recents
 import dev.aura.adosaura.switcher.SwitcherActivity
 
 /**
  * Full-swipe control over every app, not only the home screen.
  *
- * Two thin invisible strips sit on the left and right edges, above whatever
- * is on screen. What a stroke on them means is [EdgeGesture]'s call; Forward's
- * memory is [AppHistory]'s, fed from the window changes this service is told
- * about.
+ * Two thin strips sit on the left and right edges, above whatever is on
+ * screen, each marked by a faint line in the theme's accent so you can see
+ * where to swipe. What a stroke on them means is [EdgeGesture]'s call;
+ * Forward's memory is [AppHistory]'s, fed from the window changes this
+ * service is told about.
  *
  * An accessibility service because it is the one thing a normal app can use
  * to press the system Back and to draw over other apps without the
@@ -53,6 +58,9 @@ class EdgeService : AccessibilityService() {
         // too; only something with a launcher icon is an app you were "in".
         if (!launchable.getOrPut(pkg) { packageManager.getLaunchIntentForPackage(pkg) != null }) return
         history.foreground(pkg, SystemClock.uptimeMillis())
+        // The line is drawn in the theme's accent; a theme picked since the
+        // last redraw shows up on the next app switch.
+        strips.forEach { it.invalidate() }
     }
 
     override fun onInterrupt() = Unit
@@ -86,8 +94,7 @@ class EdgeService : AccessibilityService() {
             }.isSuccess
             EdgeAction.NONE -> return
         }
-        // The strips are invisible: a buzz is the only sign anything happened,
-        // and a different one says "nothing to go forward to".
+        // A buzz says it worked; a different one says "nothing to go forward to".
         strip.performHapticFeedback(
             if (done) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.REJECT,
         )
@@ -101,9 +108,18 @@ class EdgeService : AccessibilityService() {
         private var downX = 0f
         private var downY = 0f
         private var judged = false
+        private val line = Paint(Paint.ANTI_ALIAS_FLAG)
 
         init {
             isHapticFeedbackEnabled = true
+            setWillNotDraw(false)
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            line.color = Palette.current.accent.copy(alpha = EdgeStrip.LINE_ALPHA).toArgb()
+            val w = EdgeStrip.LINE_DP * density
+            val x = if (edge == Edge.LEFT) 0f else width - w
+            canvas.drawRect(x, 0f, x + w, height.toFloat(), line)
         }
 
         fun params(): WindowManager.LayoutParams {
@@ -151,9 +167,10 @@ class EdgeService : AccessibilityService() {
 }
 
 /**
- * Where the strips are and how far a stroke has to go. 16dp is narrower than
- * the system's own back-gesture zone, so it takes very little from the apps
- * underneath.
+ * Where the strips are, how they look, and how far a stroke has to go.
+ * 16dp is narrower than the system's own back-gesture zone, so it takes very
+ * little from the apps underneath. The visible line is 2dp at 45%: enough to
+ * find, faint enough over a video.
  *
  * The strips run from 12% to 60% of the screen height: clear of the status
  * bar pull-down at the top, and clear of the keyboard at the bottom, whose
@@ -165,4 +182,6 @@ object EdgeStrip {
     const val BOTTOM = 0.60f
     const val SIDE_DP = 28f
     const val DOWN_DP = 64f
+    const val LINE_DP = 2f
+    const val LINE_ALPHA = 0.45f
 }
