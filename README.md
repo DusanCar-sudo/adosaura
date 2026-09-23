@@ -130,7 +130,11 @@ theme and pane style, but keeps your apps.conf and weather location:
 | `two-pages` | widgets on page 1, every app on page 2, purplerain |
 | `retro` | amber CRT: the `crt` theme plus `crt=on` scanlines, vignette and a rolling band |
 
-`crt=on` in `look` works with any theme; `theme...` → `crt effect` toggles it. Each save is a plain folder: rename it, copy it
+`crt=on` in `look` works with any theme; `theme...` → `crt effect` toggles it.
+
+When battery saver is on, or the battery is at 20% or less and unplugged, the
+launcher goes eco: the performance tile polls every 5 s instead of every
+second, the CRT band stops rolling, and `clean` reads `clean·eco`. Each save is a plain folder: rename it, copy it
 to another phone, or edit it like the live files.
 
 ## Using it
@@ -147,6 +151,8 @@ to another phone, or edit it like the live files.
 | `Home` again | collapse to page 0 and close the drawer |
 | Esc | close the drawer |
 | tap the yellow notice | reload both config files |
+| tap `clean` | stop every user app's background processes, drop caches, show MB freed |
+| hold `clean` | optimize menu: clean, battery saver, what drains the battery |
 
 ## Permissions
 

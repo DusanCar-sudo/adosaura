@@ -124,7 +124,7 @@ fun PerfTile(modifier: Modifier = Modifier) {
                     ramTotalStr = "$totalGb GB"
                 }
 
-                delay(1000)
+                delay(if (dev.aura.adosaura.theme.Palette.eco) 5000 else 1000)
             }
         }
     }

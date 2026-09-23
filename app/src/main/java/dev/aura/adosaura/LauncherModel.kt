@@ -464,12 +464,19 @@ class LauncherModel(private val context: Context) {
     }
 
     /** A one-off line in the status strip, cleared by the next reload. */
-    private fun flash(text: String) {
+    private var flashed: String? = null
+
+    /** A one-off line in the status strip that replaces the last one and fades after [ms] (0 = stays). */
+    private fun flash(text: String, ms: Long = 4000) {
         scope.launch {
-            kotlinx.coroutines.delay(400) // after the reload publishes
-            withContext(Dispatchers.Main) { notices = notices.filterNot { it.startsWith("saved ") || it.startsWith("loaded ") || it.startsWith("deleted ") || it.startsWith("could not ") } + text }
-            kotlinx.coroutines.delay(4000)
-            withContext(Dispatchers.Main) { notices = notices - text }
+            kotlinx.coroutines.delay(400) // after a reload publishes
+            withContext(Dispatchers.Main) {
+                notices = notices.filterNot { it == flashed } + text
+                flashed = text
+            }
+            if (ms <= 0) return@launch
+            kotlinx.coroutines.delay(ms)
+            withContext(Dispatchers.Main) { if (flashed == text) { notices = notices - text; flashed = null } }
         }
     }
 
@@ -503,6 +510,9 @@ class LauncherModel(private val context: Context) {
         val text = ConfigFiles.read(ConfigFiles.look).orEmpty()
         val newLook = dev.aura.adosaura.config.KeyValueParser.parse(text).entries.toMutableMap()
         newLook["wallpaper"] = type
+        // Nearly solid panes hide the wallpaper completely, so showing it means glass.
+        val alpha = newLook["panel_alpha"]?.toIntOrNull() ?: 85
+        if (type == "transparent" && alpha > 70) newLook["panel_alpha"] = "70"
         ConfigFiles.write(ConfigFiles.look, newLook.map { "${it.key}=${it.value}" }.joinToString("\n"))
         reload()
     }
@@ -513,6 +523,7 @@ class LauncherModel(private val context: Context) {
         themeMenuOpen = false
         savesMenuOpen = false
         selectedSave = null
+        optimizeMenuOpen = false
     }
 
     fun closeDrawer() {
@@ -527,12 +538,28 @@ class LauncherModel(private val context: Context) {
         homeSignal++
     }
 
+    /** True while a clean is running, so a second tap does nothing. */
+    var cleaning by mutableStateOf(false)
+        private set
+    var optimizeMenuOpen by mutableStateOf(false)
+        private set
+
+    fun openOptimizeMenu() {
+        dismissMenus()
+        optimizeMenuOpen = true
+    }
+
     fun cleanAllRecents(context: Context) {
+        if (cleaning) return
+        cleaning = true
+        flash("cleaning…", 0)
         scope.launch(Dispatchers.IO) {
-            val recents = Recents(context)
-            if (!recents.granted()) return@launch
-            val apps = recents.recent(labels)
-            recents.cleanAll(apps.map { it.pkg })
+            val r = dev.aura.adosaura.switcher.Optimizer(context).run()
+            val battery = if (dev.aura.adosaura.switcher.Optimizer.powerSaveOn(context)) "battery saver on" else "hold clean for battery"
+            withContext(Dispatchers.Main) {
+                cleaning = false
+                flash("freed ${r.freedMb} MB · ram ${r.ramBefore}% → ${r.ramAfter}% · $battery", 6000)
+            }
             updateOpenAppCount(context)
         }
     }

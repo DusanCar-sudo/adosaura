@@ -148,4 +148,7 @@ object Palette {
 
     /** `look`'s `crt=on`: scanlines and a vignette over the whole launcher. */
     var crt by mutableStateOf(false)
+
+    /** Battery saver on, or low and unplugged: tiles poll slower and nothing animates. */
+    var eco by mutableStateOf(false)
 }

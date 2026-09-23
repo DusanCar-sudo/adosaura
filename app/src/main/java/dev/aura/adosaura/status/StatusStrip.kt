@@ -3,6 +3,8 @@ package dev.aura.adosaura.status
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,6 +39,8 @@ fun StatusStrip(
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
     onCleanAll: () -> Unit,
+    onOptimize: () -> Unit = {},
+    cleaning: Boolean = false,
     openAppCount: Int? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -95,13 +99,19 @@ fun StatusStrip(
         }
 
         Text(
-            text = "clean",
-            color = Palette.current.yellow,
+            text = when {
+                cleaning -> "cleaning"
+                Palette.eco -> "clean·eco"
+                else -> "clean"
+            },
+            color = if (cleaning) Palette.current.dim else Palette.current.yellow,
             fontSize = Metrics.smallSize,
             fontWeight = FontWeight.Bold,
             fontFamily = AdosauraMono,
             modifier = Modifier
-                .clickable { onCleanAll() }
+                .pointerInput(onCleanAll, onOptimize) {
+                    detectTapGestures(onTap = { onCleanAll() }, onLongPress = { onOptimize() })
+                }
                 .padding(start = Metrics.padH),
         )
 

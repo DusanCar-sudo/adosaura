@@ -135,6 +135,13 @@ fun LauncherRoot(model: LauncherModel) {
             val now = Instant.ofEpochMilli(tick).atZone(ZoneId.systemDefault())
 
             val context = androidx.compose.ui.platform.LocalContext.current
+            // Eco: battery saver on, or low and unplugged. Checked twice a minute.
+            LaunchedEffect(Unit) {
+                while (true) {
+                    Palette.eco = dev.aura.adosaura.switcher.Optimizer.eco(context)
+                    kotlinx.coroutines.delay(30_000)
+                }
+            }
             StatusStrip(
                 page = model.currentPage,
                 pageCount = model.layout.pageCount.coerceAtLeast(1),
@@ -144,6 +151,8 @@ fun LauncherRoot(model: LauncherModel) {
                 onOpenDrawer = { model.openDrawer() },
                 onOpenSettings = { model.openThemeMenu() },
                 onCleanAll = { model.cleanAllRecents(context) },
+                onOptimize = { model.openOptimizeMenu() },
+                cleaning = model.cleaning,
                 openAppCount = model.openAppCount,
             )
 
@@ -194,6 +203,9 @@ fun LauncherRoot(model: LauncherModel) {
         if (model.themeMenuOpen) {
             ThemeMenu(model)
         }
+        if (model.optimizeMenuOpen) {
+            OptimizeMenu(model)
+        }
         if (model.savesMenuOpen) {
             SavesMenu(model)
         }
@@ -225,6 +237,7 @@ private fun CrtOverlay() {
             y += 4f
         }
         val bandH = size.height / 6f
+        if (Palette.eco) return@Canvas
         val bandY = roll * (size.height + bandH) - bandH
         drawRect(
             Brush.verticalGradient(
@@ -401,6 +414,7 @@ private fun TileMenu(model: LauncherModel, spec: TileSpec) {
 
 @Composable
 private fun ThemeMenu(model: LauncherModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     MenuOverlay(onDismiss = { model.dismissMenus() }) {
         TextMenu(
             title = "theme",
@@ -422,6 +436,11 @@ private fun ThemeMenu(model: LauncherModel) {
                     model.setWallpaper("transparent")
                     model.dismissMenus()
                 },
+                MenuItem("pick wallpaper…") {
+                    model.setWallpaper("transparent")
+                    dev.aura.adosaura.switcher.Optimizer.pickWallpaper(context)
+                    model.dismissMenus()
+                },
                 MenuItem("bg: solid color") {
                     model.setWallpaper("solid")
                     model.dismissMenus()
@@ -431,6 +450,33 @@ private fun ThemeMenu(model: LauncherModel) {
                     model.dismissMenus()
                 },
                 MenuItem("cancel") { model.dismissMenus() }
+            ),
+            onDismiss = { model.dismissMenus() },
+        )
+    }
+}
+
+@Composable
+private fun OptimizeMenu(model: LauncherModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val saver = dev.aura.adosaura.switcher.Optimizer.powerSaveOn(context)
+    MenuOverlay(onDismiss = { model.dismissMenus() }) {
+        TextMenu(
+            title = "optimize",
+            items = listOf(
+                MenuItem("clean memory now") {
+                    model.dismissMenus()
+                    model.cleanAllRecents(context)
+                },
+                MenuItem(if (saver) "battery saver: on…" else "battery saver: off…") {
+                    dev.aura.adosaura.switcher.Optimizer.openBatterySaver(context)
+                    model.dismissMenus()
+                },
+                MenuItem("what drains the battery…") {
+                    dev.aura.adosaura.switcher.Optimizer.openBatteryUsage(context)
+                    model.dismissMenus()
+                },
+                MenuItem("cancel") { model.dismissMenus() },
             ),
             onDismiss = { model.dismissMenus() },
         )
