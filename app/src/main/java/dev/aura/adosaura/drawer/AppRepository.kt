@@ -31,6 +31,15 @@ class AppRepository(private val context: Context) {
         }.getOrDefault(emptyMap())
     }
 
+    /** One package's real display label, or null when it has no launchable activity. */
+    fun label(packageName: String): String? {
+        val apps = launcherApps ?: return null
+        return runCatching {
+            apps.getActivityList(packageName, Process.myUserHandle())
+                .firstOrNull()?.label?.toString()
+        }.getOrNull()
+    }
+
     /** Launch the app's default activity. False when it is gone or disabled. */
     fun launch(packageName: String): Boolean {
         val apps = launcherApps ?: return false

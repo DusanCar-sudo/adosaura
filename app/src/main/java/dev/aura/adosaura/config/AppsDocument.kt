@@ -46,6 +46,7 @@ class AppsDocument(private val text: String) {
         } else {
             if (lines.isNotEmpty() && lines.last().isNotBlank()) lines.add("")
             lines.add(rendered)
+            lines.add("")
         }
         return lines.joinToString("\n")
     }
@@ -65,6 +66,9 @@ class AppsDocument(private val text: String) {
         if (lines.isNotEmpty() && lines.last().isNotBlank()) lines.add("")
         lines.add("# added by adosaura on install")
         lines.add(render(entry))
+        // End on a newline, or the next append — ours or a shell `>>` — lands
+        // on the same line and both entries are lost.
+        lines.add("")
         return lines.joinToString("\n")
     }
 

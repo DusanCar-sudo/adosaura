@@ -210,6 +210,21 @@ class AppsDocumentTest {
     }
 
     @Test
+    fun `an appended entry ends on a newline so the next one gets its own line`() {
+        val once = AppsDocument("com.a.b | B | all\n")
+            .appendIfMissing(AppEntry("com.new.app", "New app", listOf("all")))
+        val twice = AppsDocument(once)
+            .appendIfMissing(AppEntry("com.other.app", "Other", listOf("all")))
+        val byHand = twice + "com.shell.app | Shell | all\n"
+
+        assertTrue(once.endsWith("\n"))
+        assertEquals(
+            listOf("com.a.b", "com.new.app", "com.other.app", "com.shell.app"),
+            AppsConfigParser.parse(byHand).entries.map { it.pkg },
+        )
+    }
+
+    @Test
     fun `a package the user deliberately deleted is not sneaked back in`() {
         val text = "com.a.b | B | all\n"
         val out = AppsDocument(text).appendIfMissing(AppEntry("com.a.b", "B", listOf("all")))

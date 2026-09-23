@@ -398,7 +398,10 @@ class LauncherModel(private val context: Context) {
     /** A freshly installed app becomes a line in apps.conf, marked as ours. */
     private fun appendInstalled(packageName: String) {
         val text = ConfigFiles.read(ConfigFiles.apps) ?: return
-        val label = labels[packageName] ?: AppsConfigParser.labelFrom(packageName)
+        // Ask the package manager directly: `labels` is from before the install,
+        // so it never has the new app and the fallback turned
+        // com.mi.global.bbs into "Bbs".
+        val label = repo.label(packageName) ?: AppsConfigParser.labelFrom(packageName)
         val entry = AppEntry(packageName, label, listOf(AppsConfigParser.DEFAULT_GROUP))
         ConfigFiles.write(ConfigFiles.apps, AppsDocument(text).appendIfMissing(entry))
     }
