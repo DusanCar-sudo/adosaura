@@ -18,4 +18,11 @@
         <item name="android:windowAnimationStyle">@null</item>
     </style>
 
+    <!-- The switcher opened over another app by the edge swipe: the app
+         stays visible behind it, not the wallpaper. -->
+    <style name="Theme.Adosaura.Overlay" parent="Theme.Adosaura">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
+
 </resources>

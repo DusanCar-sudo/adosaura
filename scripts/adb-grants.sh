@@ -75,6 +75,20 @@ say "                          (a no-op until the Phase 2 listener lands)"
 adb shell cmd notification allow_listener "$PKG/.NotifyListener" >/dev/null 2>&1 \
     || hint "set it by hand later: Settings > Notifications > Notification access"
 
+say "edge swipes — right edge Back, left edge Forward, down for the switcher"
+# Appended, never overwritten: other accessibility services stay on.
+EDGE="$PKG/$PKG.gestures.EdgeService"
+ON="$(adb shell settings get secure enabled_accessibility_services 2>/dev/null | tr -d '\r')"
+if [[ "$ON" == *"$EDGE"* ]]; then
+    :
+elif [[ -z "$ON" || "$ON" == "null" ]]; then
+    adb shell settings put secure enabled_accessibility_services "$EDGE"
+else
+    adb shell settings put secure enabled_accessibility_services "$ON:$EDGE"
+fi
+adb shell settings put secure accessibility_enabled 1 \
+    || hint "set it by hand: Settings > Accessibility > adosaura edge swipes"
+
 echo
 say "done"
 echo

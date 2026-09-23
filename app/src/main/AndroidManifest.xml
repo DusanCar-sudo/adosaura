@@ -58,6 +58,31 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Opened by the edge swipe-down over any app. Its own affinity so
+             closing it returns to that app, not to the home screen. -->
+        <activity
+            android:name=".switcher.SwitcherActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="dev.aura.adosaura.switcher"
+            android:theme="@style/Theme.Adosaura.Overlay" />
+
+        <!-- Full-swipe control: right edge Back, left edge Forward, down for
+             the switcher. Enabled by scripts/adb-grants.sh. -->
+        <service
+            android:name=".gestures.EdgeService"
+            android:exported="true"
+            android:label="@string/edge_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/edge_service" />
+        </service>
     </application>
 
 </manifest>
