@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Flat, dark, square corners, wallpaper visible behind translucent panes —
+         the same look as `look`/purplerain on the laptop (panels=glass,
+         panel_alpha=85). No action bar, no Material chrome, no elevation. -->
+    <style name="Theme.Adosaura" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <!-- No system animations anywhere: panes snap into place. -->
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
+</resources>

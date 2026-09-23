@@ -1,0 +1,16 @@
+# purplerain — flat violet on near-black (the default)
+bg=#0e0e14
+bg_alt=#14141e
+border=#2a2a3a
+fg=#c8cad8
+fg_bright=#e6e8f2
+dim=#5c5f77
+muted=#7f849c
+accent=#8b7cf6
+accent_bright=#a594f9
+red=#f38ba8
+green=#83e6a0
+yellow=#f9e2af
+blue=#6ea8fe
+cyan=#5de4c7
+orange=#f5a97f

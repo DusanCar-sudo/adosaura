@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Same purplerain keys as theme/Palette.kt, for XML that cannot see Kotlin. -->
+    <color name="bg">#0e0e14</color>
+    <color name="accent">#8b7cf6</color>
+    <color name="ic_launcher_background">#0e0e14</color>
+</resources>

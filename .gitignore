@@ -1,0 +1,19 @@
+# Toolchain installed by scripts/bootstrap-toolchain.sh — never committed.
+toolchain/
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.ap_
+.kotlin/
+
+# Local only: signing key, one-off edit scripts, and the phone's package/usage scans.
+*.keystore
+*.jks
+archive/
+docs/scan/
