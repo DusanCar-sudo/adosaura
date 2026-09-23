@@ -185,6 +185,12 @@ fun LauncherRoot(model: LauncherModel) {
         if (model.themeMenuOpen) {
             ThemeMenu(model)
         }
+        if (model.savesMenuOpen) {
+            SavesMenu(model)
+        }
+        model.selectedSave?.let { name ->
+            SaveMenu(model, name)
+        }
     }
 }
 
@@ -377,6 +383,49 @@ private fun ThemeMenu(model: LauncherModel) {
 }
 
 @Composable
+private fun SavesMenu(model: LauncherModel) {
+    MenuOverlay(onDismiss = { model.dismissMenus() }) {
+        TextMenu(
+            title = "saved screens",
+            items = listOf(
+                MenuItem("+ save this screen") {
+                    model.saveHome()
+                    model.dismissMenus()
+                },
+            ) + model.saves.map { name ->
+                MenuItem(name) { model.selectSave(name) }
+            } + MenuItem("cancel") { model.dismissMenus() },
+            onDismiss = { model.dismissMenus() },
+        )
+    }
+}
+
+@Composable
+private fun SaveMenu(model: LauncherModel, name: String) {
+    MenuOverlay(onDismiss = { model.dismissMenus() }) {
+        TextMenu(
+            title = name,
+            items = listOf(
+                MenuItem("load") {
+                    model.loadHome(name)
+                    model.dismissMenus()
+                },
+                MenuItem("overwrite with this screen") {
+                    model.saveHome(name)
+                    model.dismissMenus()
+                },
+                MenuItem("delete") {
+                    model.deleteHome(name)
+                    model.dismissMenus()
+                },
+                MenuItem("back") { model.openSavesMenu() },
+            ),
+            onDismiss = { model.dismissMenus() },
+        )
+    }
+}
+
+@Composable
 private fun AddMenu(model: LauncherModel) {
     val page = model.currentPage
     MenuOverlay(onDismiss = { model.dismissMenus() }) {
@@ -423,6 +472,9 @@ private fun AddMenu(model: LauncherModel) {
                 },
                 MenuItem("theme...") {
                     model.openThemeMenu()
+                },
+                MenuItem("saves...") {
+                    model.openSavesMenu()
                 },
                 MenuItem("factory reset") {
                     model.factoryReset()

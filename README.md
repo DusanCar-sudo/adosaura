@@ -112,11 +112,20 @@ lon=20.45
 place=belgrade
 ```
 
+### `saves/` — saved home screens
+
+`add` → `saves...` → `+ save this screen` copies `layout.conf`, `theme`,
+`look` and `apps.conf` into `saves/home-N/`. Tap a save to load it, overwrite
+it or delete it. Loading first copies the current screen to `saves/previous/`,
+so a load can always be undone. Each save is a plain folder: rename it, copy it
+to another phone, or edit it like the live files.
+
 ## Using it
 
 | | |
 | --- | --- |
 | `add` (top right) | add a tile, or start a new page |
+| `add` → `saves...` | save this home screen, or load / overwrite / delete a saved one |
 | `apps` (top right) | the app drawer |
 | drag a tile's `↘` | resize it along its zone's axis |
 | long-press a tile title | bigger / smaller / move to page / remove |
@@ -159,7 +168,7 @@ what Phase 2 (no root) covers and what Phase 3 (rooted) would add.
         LauncherModel.kt      all state, and every write back to the files
         config/               parsers + file IO — pure Kotlin, unit tested
         tiles/  drawer/  status/  ui/
-    app/src/test/java/         78 tests over the file formats and labels
+    app/src/test/java/         83 tests over the file formats, labels and saves
     docs/DESIGN.md             the design system and the phase boundaries
 
 ## Licence

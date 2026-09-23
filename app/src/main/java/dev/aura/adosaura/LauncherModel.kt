@@ -64,6 +64,14 @@ class LauncherModel(private val context: Context) {
         private set
     var themeMenuOpen by mutableStateOf(false)
         private set
+    var savesMenuOpen by mutableStateOf(false)
+        private set
+    /** The save whose load/overwrite/delete menu is open. */
+    var selectedSave by mutableStateOf<String?>(null)
+        private set
+    /** Save names, refreshed whenever the saves menu opens. */
+    var saves by mutableStateOf(emptyList<String>())
+        private set
 
     /** Bumped on every Home press, so the UI can collapse to page 0. */
     var homeSignal by mutableIntStateOf(0)
@@ -413,6 +421,49 @@ class LauncherModel(private val context: Context) {
         themeMenuOpen = true
     }
 
+    fun openSavesMenu() {
+        dismissMenus()
+        saves = dev.aura.adosaura.config.Saves.list()
+        savesMenuOpen = true
+    }
+
+    fun selectSave(name: String) {
+        dismissMenus()
+        selectedSave = name
+    }
+
+    /** Saves the current home screen under [name], or the next free `home-N`. */
+    fun saveHome(name: String? = null) {
+        val target = name ?: dev.aura.adosaura.config.Saves.nextName(dev.aura.adosaura.config.Saves.list())
+        val ok = dev.aura.adosaura.config.Saves.save(target)
+        flash(if (ok) "saved $target" else "could not save $target")
+    }
+
+    /** Keeps the current screen as `previous` first, so a load is never destructive. */
+    fun loadHome(name: String) {
+        if (name != dev.aura.adosaura.config.Saves.PREVIOUS) {
+            dev.aura.adosaura.config.Saves.save(dev.aura.adosaura.config.Saves.PREVIOUS)
+        }
+        val ok = dev.aura.adosaura.config.Saves.load(name)
+        reload()
+        flash(if (ok) "loaded $name" else "could not load $name")
+    }
+
+    fun deleteHome(name: String) {
+        val ok = dev.aura.adosaura.config.Saves.delete(name)
+        flash(if (ok) "deleted $name" else "could not delete $name")
+    }
+
+    /** A one-off line in the status strip, cleared by the next reload. */
+    private fun flash(text: String) {
+        scope.launch {
+            kotlinx.coroutines.delay(400) // after the reload publishes
+            withContext(Dispatchers.Main) { notices = notices.filterNot { it.startsWith("saved ") || it.startsWith("loaded ") || it.startsWith("deleted ") || it.startsWith("could not ") } + text }
+            kotlinx.coroutines.delay(4000)
+            withContext(Dispatchers.Main) { notices = notices - text }
+        }
+    }
+
     fun setTheme(name: String) {
         ConfigFiles.write(ConfigFiles.theme, name)
         // Also apply immediately just in case reload is racing or dropping it
@@ -443,6 +494,8 @@ class LauncherModel(private val context: Context) {
         editingTile = null
         addMenuOpen = false
         themeMenuOpen = false
+        savesMenuOpen = false
+        selectedSave = null
     }
 
     fun closeDrawer() {
