@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 import dev.aura.adosaura.theme.AdosauraMono
@@ -91,91 +93,89 @@ fun WeatherTile(modifier: Modifier = Modifier) {
                 label = "weather_anim"
             )
             
-            // Simple animated sun or cloud based on weather string
-            if (!isError && weather != "loading...") {
-                Canvas(modifier = Modifier.size(32.dp).padding(bottom = 8.dp)) {
-                    if (weather.contains("clear")) {
-                        drawCircle(
-                            color = Palette.current.yellow,
-                            radius = size.width / 2 * scale,
-                            center = center
-                        )
-                    } else if (weather.contains("cloud") || weather.contains("overcast") || weather.contains("fog")) {
-                        val cloudColor = Palette.current.fgBright
-                        drawCircle(
-                            color = cloudColor,
-                            radius = size.width / 3,
-                            center = Offset(center.x - 10f * scale, center.y)
-                        )
-                        drawCircle(
-                            color = cloudColor,
-                            radius = size.width / 2.5f,
-                            center = Offset(center.x + 5f * scale, center.y - 5f)
-                        )
-                        drawCircle(
-                            color = cloudColor,
-                            radius = size.width / 3.5f,
-                            center = Offset(center.x + 15f * scale, center.y + 2f)
-                        )
-                    } else if (weather.contains("rain") || weather.contains("drizzle") || weather.contains("shower")) {
-                        drawCircle(
-                            color = Palette.current.dim,
-                            radius = size.width / 2.5f,
-                            center = Offset(center.x, center.y - 5f)
-                        )
-                        drawCircle(
-                            color = Palette.current.blue,
-                            radius = 4f,
-                            center = Offset(center.x - 5f, center.y + 10f + (scale * 5f))
-                        )
-                        drawCircle(
-                            color = Palette.current.blue,
-                            radius = 4f,
-                            center = Offset(center.x + 5f, center.y + 15f + (scale * 5f))
-                        )
-                    } else if (weather.contains("snow")) {
-                        drawCircle(
-                            color = Palette.current.fgBright,
-                            radius = size.width / 2.5f,
-                            center = Offset(center.x, center.y - 5f)
-                        )
-                        drawCircle(
-                            color = Palette.current.fgBright,
-                            radius = 3f,
-                            center = Offset(center.x - 5f, center.y + 10f + (scale * 5f))
-                        )
-                        drawCircle(
-                            color = Palette.current.fgBright,
-                            radius = 3f,
-                            center = Offset(center.x + 5f, center.y + 15f + (scale * 5f))
-                        )
+            // Icon beside the temperature: stacked, they overflow a half-height tile.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Simple animated sun or cloud based on weather string
+                if (!isError && weather != "loading...") {
+                    Canvas(modifier = Modifier.size(32.dp)) {
+                        if (weather.contains("clear")) {
+                            drawCircle(
+                                color = Palette.current.yellow,
+                                radius = size.width / 2 * scale,
+                                center = center
+                            )
+                        } else if (weather.contains("cloud") || weather.contains("overcast") || weather.contains("fog")) {
+                            val cloudColor = Palette.current.fgBright
+                            drawCircle(
+                                color = cloudColor,
+                                radius = size.width / 3,
+                                center = Offset(center.x - 10f * scale, center.y)
+                            )
+                            drawCircle(
+                                color = cloudColor,
+                                radius = size.width / 2.5f,
+                                center = Offset(center.x + 5f * scale, center.y - 5f)
+                            )
+                            drawCircle(
+                                color = cloudColor,
+                                radius = size.width / 3.5f,
+                                center = Offset(center.x + 15f * scale, center.y + 2f)
+                            )
+                        } else if (weather.contains("rain") || weather.contains("drizzle") || weather.contains("shower")) {
+                            drawCircle(
+                                color = Palette.current.dim,
+                                radius = size.width / 2.5f,
+                                center = Offset(center.x, center.y - 5f)
+                            )
+                            drawCircle(
+                                color = Palette.current.blue,
+                                radius = 4f,
+                                center = Offset(center.x - 5f, center.y + 10f + (scale * 5f))
+                            )
+                            drawCircle(
+                                color = Palette.current.blue,
+                                radius = 4f,
+                                center = Offset(center.x + 5f, center.y + 15f + (scale * 5f))
+                            )
+                        } else if (weather.contains("snow")) {
+                            drawCircle(
+                                color = Palette.current.fgBright,
+                                radius = size.width / 2.5f,
+                                center = Offset(center.x, center.y - 5f)
+                            )
+                            drawCircle(
+                                color = Palette.current.fgBright,
+                                radius = 3f,
+                                center = Offset(center.x - 5f, center.y + 10f + (scale * 5f))
+                            )
+                            drawCircle(
+                                color = Palette.current.fgBright,
+                                radius = 3f,
+                                center = Offset(center.x + 5f, center.y + 15f + (scale * 5f))
+                            )
+                        }
                     }
                 }
-            }
 
+                if (tempC != null) {
+                    Text(
+                        text = "${tempC}°",
+                        color = Palette.current.fgBright,
+                        fontSize = Metrics.clockSize * 0.75f,
+                        softWrap = false,
+                        fontFamily = AdosauraMono,
+                        modifier = Modifier.padding(start = 10.dp),
+                    )
+                }
+            }
             Text(
-                text = weather,
+                text = if (place.isEmpty() || isError) weather else "$weather\n$place",
+                textAlign = TextAlign.Center,
+                lineHeight = Metrics.bodySize,
                 color = if (isError) Palette.current.red else Palette.current.accent,
                 fontSize = Metrics.bodySize,
                 fontFamily = AdosauraMono,
             )
-            if (tempC != null) {
-                Text(
-                    text = "${tempC}°C",
-                    color = Palette.current.fgBright,
-                    fontSize = Metrics.clockSize,
-                    fontFamily = AdosauraMono,
-                )
-            }
-            if (place.isNotEmpty()) {
-                Text(
-                    text = place,
-                    color = Palette.current.dim,
-                    fontSize = Metrics.titleSize,
-                    fontFamily = AdosauraMono,
-                    maxLines = 1,
-                )
-            }
         }
     }
 }

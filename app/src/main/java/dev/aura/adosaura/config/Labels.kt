@@ -41,26 +41,25 @@ object Labels {
      */
     fun split(label: String, cols: Int): List<String> {
         if (cols <= 0 || label.length <= cols) return listOf(label)
-        val words = label.split(' ')
-        // Break at a space when that already fits: "Aura Pulse" → "Aura" / "Pulse".
-        if (words.size > 1 && words.all { it.length <= cols }) {
-            val lines = mutableListOf<String>()
-            var line = ""
-            for (w in words) {
-                line = when {
-                    line.isEmpty() -> w
-                    line.length + 1 + w.length <= cols -> "$line $w"
-                    else -> { lines += line; w }
-                }
+        // Wrap at spaces; only a word wider than the tile is itself cut, in
+        // half when a half fits ("Camera" → "Cam" / "era"), else in chunks.
+        val pieces = label.split(' ').filter { it.isNotEmpty() }.flatMap { word ->
+            when {
+                word.length <= cols -> listOf(word)
+                (word.length + 1) / 2 <= cols -> listOf(word.take((word.length + 1) / 2), word.drop((word.length + 1) / 2))
+                else -> word.chunked(cols)
             }
-            lines += line
-            return lines
         }
-        val half = (label.length + 1) / 2
-        return if (half <= cols) {
-            listOf(label.take(half).trimEnd(), label.drop(half).trimStart())
-        } else {
-            label.chunked(cols)
+        val lines = mutableListOf<String>()
+        var line = ""
+        for (p in pieces) {
+            line = when {
+                line.isEmpty() -> p
+                line.length + 1 + p.length <= cols -> "$line $p"
+                else -> { lines += line; p }
+            }
         }
+        lines += line
+        return lines
     }
 }

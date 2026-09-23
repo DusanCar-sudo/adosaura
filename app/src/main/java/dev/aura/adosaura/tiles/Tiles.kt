@@ -145,10 +145,12 @@ fun ClockCalTile() {
             val rowHeight = with(LocalDensity.current) { (Metrics.smallSize * 1.5f).toDp() }
             val month = YearMonth.from(now)
             val weeks = (month.atDay(1).dayOfWeek.value - 1 + month.lengthOfMonth() + 6) / 7
+            val rowsThatFit = (maxHeight / rowHeight).toInt()
             MonthGrid(
                 month = month,
                 today = now.toLocalDate(),
-                weekOnly = maxHeight < rowHeight * (weeks + 1),
+                weekOnly = rowsThatFit < weeks + 1,
+                showHeader = rowsThatFit >= 2 || rowsThatFit >= weeks + 1,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -191,13 +193,14 @@ private fun MonthGrid(
     today: LocalDate,
     modifier: Modifier = Modifier,
     weekOnly: Boolean = false,
+    showHeader: Boolean = true,
 ) {
     val firstOfMonth = month.atDay(1)
     val leadingBlanks = firstOfMonth.dayOfWeek.value - DayOfWeek.MONDAY.value
     val daysInMonth = month.lengthOfMonth()
 
     Column(modifier) {
-        Row(Modifier.fillMaxWidth()) {
+        if (showHeader) Row(Modifier.fillMaxWidth()) {
             WEEKDAYS.forEach { day ->
                 Text(
                     text = day,
@@ -256,7 +259,7 @@ fun AppListTile(
     onLaunch: (String) -> Unit,
 ) {
     val rows = entries.filter { group in it.groups || group == it.pkg }
-    val names = remember(entries) { Labels.display(entries) }
+    val names = remember(rows) { Labels.display(rows) }
     val cellPx = rememberTextMeasurer()
         .measure("M", TextStyle(fontSize = Metrics.bodySize, fontFamily = AdosauraMono))
         .size.width

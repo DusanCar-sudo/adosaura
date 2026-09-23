@@ -28,7 +28,7 @@ Redmi Note 12 Pro 4G, HyperOS 1.0.
 
 | home | drawer | app menu | add tile | tile menu |
 | --- | --- | --- | --- | --- |
-| ![home](docs/screenshots/home.jpg) | ![drawer](docs/screenshots/drawer.jpg) | ![app menu](docs/screenshots/app-menu.jpg) | ![add tile](docs/screenshots/add-tile.jpg) | ![tile menu](docs/screenshots/tile-menu.jpg) |
+| ![home](docs/screenshots/home.png) | ![drawer](docs/screenshots/drawer.jpg) | ![app menu](docs/screenshots/app-menu.jpg) | ![add tile](docs/screenshots/add-tile.jpg) | ![tile menu](docs/screenshots/tile-menu.jpg) |
 
 ## Quick start
 

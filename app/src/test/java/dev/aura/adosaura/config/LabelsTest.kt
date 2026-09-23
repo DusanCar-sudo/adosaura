@@ -37,4 +37,7 @@ class LabelsTest {
 
     @Test fun veryLongWordIsChunked() =
         assertEquals(listOf("Auth", "enti", "cato", "r"), Labels.split("Authenticator", 4))
+
+    @Test fun onlyTheTooLongWordIsCut() =
+        assertEquals(listOf("Fast", "Dong", "VND", "conve", "rter"), Labels.split("Fast Dong VND converter", 5))
 }
