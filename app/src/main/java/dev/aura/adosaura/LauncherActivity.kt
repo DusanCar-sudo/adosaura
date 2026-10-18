@@ -1,12 +1,15 @@
 package dev.aura.adosaura
 
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -22,17 +26,24 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -61,11 +72,16 @@ import dev.aura.adosaura.tiles.TileView
 import dev.aura.adosaura.ui.MenuItem
 import dev.aura.adosaura.ui.TextMenu
 import dev.aura.adosaura.ui.SwipeUpBar
+import dev.aura.adosaura.ui.WhileStarted
 import dev.aura.adosaura.ui.rememberBatteryPercent
 import dev.aura.adosaura.ui.rememberTick
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.sin
 
 /**
  * The launcher — one Activity, and the only one that answers HOME.
@@ -125,6 +141,11 @@ class LauncherActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        model.lastInteraction.longValue = System.currentTimeMillis()
+    }
+
     /**
      * The system bars are hidden on the home screen and the launcher draws its
      * own status strip. Swiping in from an edge brings them back transiently,
@@ -156,14 +177,16 @@ fun LauncherRoot(model: LauncherModel) {
         if (Palette.wallpaperOverride == "photo") {
             dev.aura.adosaura.ui.PhotoBackground(Palette.photoStamp)
         }
-        Column(Modifier.fillMaxSize()) {
+        // imePadding: typing into a note tile shrinks the tiles above the
+        // keyboard instead of hiding the line being typed behind it.
+        Column(Modifier.fillMaxSize().imePadding()) {
             val tick = rememberTick()
             val battery = rememberBatteryPercent()
             val now = Instant.ofEpochMilli(tick).atZone(ZoneId.systemDefault())
 
             val context = androidx.compose.ui.platform.LocalContext.current
             // Eco: battery saver on, or low and unplugged. Checked twice a minute.
-            LaunchedEffect(Unit) {
+            WhileStarted {
                 while (true) {
                     Palette.eco = dev.aura.adosaura.switcher.Optimizer.eco(context)
                     kotlinx.coroutines.delay(30_000)
@@ -220,6 +243,13 @@ fun LauncherRoot(model: LauncherModel) {
             )
         }
 
+        if (model.deepCleanOpen) {
+            dev.aura.adosaura.clean.DeepCleanScreen(
+                labels = model.labels,
+                onClose = { model.closeDeepClean() },
+            )
+        }
+
         // Two modal menus, both dismissed by a tap anywhere.
         model.editingTile?.let { spec ->
             TileMenu(model, spec)
@@ -242,6 +272,8 @@ fun LauncherRoot(model: LauncherModel) {
 
         // Drawn last, over menus too, and never takes a touch.
         if (Palette.crt) CrtOverlay()
+        // The charging screensaver: on top of everything, shown only when idle.
+        ChargingOverlay(model.lastInteraction)
     }
 }
 
@@ -283,6 +315,153 @@ private fun CrtOverlay() {
             ),
         )
     }
+}
+
+/** Seconds with no touch before the charging animation takes over the screen. */
+private const val CHARGE_IDLE_MS = 4000L
+
+/** One full loop of the spark around the rail, in milliseconds. */
+private const val CHARGE_LOOP_MS = 4000L
+
+/**
+ * A charging screensaver: electricity races around the screen edges, bolts
+ * strike a chip in the middle, and current flows through the chip. Shown only
+ * while plugged in and idle; any touch dismisses it (onUserInteraction), and it
+ * returns a few seconds after the last touch.
+ */
+@Composable
+private fun ChargingOverlay(lastInteraction: androidx.compose.runtime.MutableLongState) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var charging by remember { mutableStateOf(false) }
+    WhileStarted {
+        while (true) {
+            val i = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val status = i?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == BatteryManager.BATTERY_STATUS_FULL
+            kotlinx.coroutines.delay(1500)
+        }
+    }
+    if (!charging) return
+
+    // A slow ticker notices idle->show; the frame loop below runs only while shown.
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    WhileStarted {
+        while (true) {
+            now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(250)
+        }
+    }
+    val idle = now - lastInteraction.longValue >= CHARGE_IDLE_MS
+    // `visible` only flips off when the screensaver's own gesture finishes, so a
+    // dismissing tap is fully swallowed and never leaks to the launcher below.
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(idle) { if (idle) visible = true }
+    // Stop the tiles animating behind the scrim: their 120fps redraws would
+    // otherwise redraw this overlay every frame and get the launcher killed.
+    DisposableEffect(visible) {
+        val was = Palette.eco
+        Palette.eco = was || visible
+        onDispose { Palette.eco = was }
+    }
+    var t by remember { mutableFloatStateOf(0f) }
+    WhileStarted(visible) {
+        if (!visible) return@WhileStarted
+        val start = System.currentTimeMillis() - (t * 1000f).toLong()
+        while (true) {
+            t = (System.currentTimeMillis() - start) / 1000f
+            kotlinx.coroutines.delay(100) // ~10fps: electricity crackles, no need to race the display or burn CPU
+        }
+    }
+    if (!visible) return
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitFirstDown().consume()
+                        var up = false
+                        while (!up) {
+                            val e = awaitPointerEvent()
+                            e.changes.forEach { it.consume() }
+                            up = e.changes.none { it.pressed }
+                        }
+                        visible = false
+                    }
+                }
+            },
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            val phase = (t * 1000f / CHARGE_LOOP_MS) % 1f
+            drawRect(Color.Black.copy(alpha = 0.32f))
+
+            val cyan = Color(0xFF00E5FF)
+            val whiteHot = Color(0xFFE6F9FF)
+
+            // One river of electricity: a jagged channel from the bottom edge
+            // into the chip at the centre.
+            val chipW = size.minDimension * 0.26f
+            val chipH = chipW * 0.62f
+            val chipR = chipW * 0.16f
+            val chipL = center.x - chipW / 2f
+            val chipT = center.y - chipH / 2f
+            val pulse = 0.5f + 0.5f * sin(phase * PI.toFloat() * 2f)
+
+            val from = Offset(center.x, size.height)
+            val to = Offset(center.x, chipT)
+            val dx = to.x - from.x
+            val dy = to.y - from.y
+            val len = hypot(dx, dy)
+            val nx = -dy / len
+            val ny = dx / len
+            val flick = (t * 1000f / 90f).toInt() // crackles ~11/s
+
+            val riverPath = Path()
+            riverPath.moveTo(from.x, from.y)
+            for (k in 1..10) {
+                val f = k / 10f
+                val j = (h(flick + k) - 0.5f) * size.width * 0.15f * sin(f * PI).toFloat()
+                riverPath.lineTo(from.x + dx * f + nx * j, from.y + dy * f + ny * j)
+            }
+            riverPath.lineTo(to.x, to.y)
+
+            // Two thin strokes only: cyan body + hot core (wide glow strokes are CPU-expensive).
+            drawPath(riverPath, cyan.copy(alpha = 0.6f), style = Stroke(4.dp.toPx(), cap = StrokeCap.Round))
+            drawPath(riverPath, whiteHot.copy(alpha = 0.95f), style = Stroke(1.8.dp.toPx(), cap = StrokeCap.Round))
+
+            // A few sparks flowing up into the chip.
+            for (p in 0 until 4) {
+                val f = (phase + p / 4f) % 1f
+                val px = center.x + sin((f + phase) * PI * 2f).toFloat() * size.width * 0.05f
+                val py = from.y + (to.y - from.y) * f
+                drawCircle(whiteHot.copy(alpha = 0.9f * (1f - f)), 1.5.dp.toPx(), Offset(px, py))
+            }
+
+            // The chip, fed from below.
+            drawRoundRect(color = Color(0xFF061830), topLeft = Offset(chipL, chipT), size = Size(chipW, chipH), cornerRadius = CornerRadius(chipR, chipR))
+            drawRoundRect(color = cyan.copy(alpha = (0.5f + 0.5f * pulse)), topLeft = Offset(chipL, chipT), size = Size(chipW, chipH), cornerRadius = CornerRadius(chipR, chipR), style = Stroke(1.5.dp.toPx()))
+            for (f in 0 until 2) {
+                val y = chipT + chipH * (0.3f + 0.4f * f)
+                val sweep = (phase * 1.4f + f * 0.5f) % 1f
+                val x = chipL + chipW * 0.12f + chipW * 0.76f * sweep
+                drawCircle(cyan.copy(alpha = 0.7f), 1.6.dp.toPx(), Offset(x - 4.dp.toPx(), y))
+                drawCircle(whiteHot.copy(alpha = 0.9f), 1.4.dp.toPx(), Offset(x, y))
+            }
+            // Impact glow where the river strikes the chip.
+            drawCircle(whiteHot.copy(alpha = 0.3f + 0.4f * pulse), chipW * 0.12f, Offset(center.x, chipT))
+            drawCircle(cyan.copy(alpha = (0.12f + 0.2f * pulse)), chipW * 0.30f, center)
+        }
+    }
+}
+
+/** Deterministic 0..1 from an int, so each bolt keeps its own zigzag shape. */
+private fun h(x: Int): Float {
+    var n = x * 0x45d9f3b
+    n = (n xor (n ushr 16)) * 0x45d9f3b
+    n = (n xor (n ushr 16)) and 0x7fffffff
+    return n / 0x7fffffff.toFloat()
 }
 
 @Composable
@@ -559,6 +738,7 @@ private fun OptimizeMenu(model: LauncherModel) {
                     model.dismissMenus()
                     model.cleanAllRecents(context)
                 },
+                MenuItem("deep clean storage…") { model.openDeepClean() },
                 MenuItem(if (saver) "battery saver: on…" else "battery saver: off…") {
                     dev.aura.adosaura.switcher.Optimizer.openBatterySaver(context)
                     model.dismissMenus()
@@ -663,6 +843,14 @@ private fun AddMenu(model: LauncherModel) {
                 },
                 MenuItem("matrix rain (animated)") {
                     model.addTile(TileSpec(page, model.layout.rows(page).size, "matrix"))
+                    model.dismissMenus()
+                },
+                MenuItem("note (todo.md)") {
+                    model.addTile(TileSpec(page, model.layout.rows(page).size, "note", "todo"))
+                    model.dismissMenus()
+                },
+                MenuItem("text file (status.txt)") {
+                    model.addTile(TileSpec(page, model.layout.rows(page).size, "file", "status.txt"))
                     model.dismissMenus()
                 },
                 MenuItem("apps (pinned)") {

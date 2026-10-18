@@ -9,7 +9,6 @@ import android.os.StatFs
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -28,7 +27,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun rememberTick(): Long {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
+    WhileStarted {
         while (true) {
             now = System.currentTimeMillis()
             delay(1000L - (now % 1000L))

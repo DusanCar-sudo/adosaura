@@ -42,10 +42,24 @@ class EdgeService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        ensureStrips()
+    }
+
+    /**
+     * Add any strip that is not on screen. HyperOS can kill and restart the
+     * service without a fresh onServiceConnected, and a failed addView used to
+     * leave the edges dead for good — every window change gets a retry.
+     */
+    private fun ensureStrips() {
         if (strips.isEmpty()) {
             strips += Strip(Edge.LEFT)
             strips += Strip(Edge.RIGHT)
-            strips.forEach { runCatching { windows().addView(it, it.params()) } }
+        }
+        strips.forEach { strip ->
+            if (!strip.attached) {
+                runCatching { windows().addView(strip, strip.params()) }
+                    .onSuccess { strip.attached = true }
+            }
         }
     }
 
@@ -59,7 +73,8 @@ class EdgeService : AccessibilityService() {
         if (!launchable.getOrPut(pkg) { packageManager.getLaunchIntentForPackage(pkg) != null }) return
         history.foreground(pkg, SystemClock.uptimeMillis())
         // The line is drawn in the theme's accent; a theme picked since the
-        // last redraw shows up on the next app switch.
+        // next app switch shows up here.
+        ensureStrips()
         strips.forEach { it.invalidate() }
     }
 
@@ -68,12 +83,17 @@ class EdgeService : AccessibilityService() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         // Rotation: the strips keep their share of the new height.
-        strips.forEach { runCatching { windows().updateViewLayout(it, it.params()) } }
+        strips.forEach { strip ->
+            if (strip.attached) runCatching { windows().updateViewLayout(strip, strip.params()) }
+        }
+        ensureStrips()
     }
 
     override fun onDestroy() {
-        strips.forEach { runCatching { windows().removeView(it) } }
-        strips.clear()
+        strips.forEach { strip ->
+            if (strip.attached) runCatching { windows().removeView(strip) }
+            strip.attached = false
+        }
         super.onDestroy()
     }
 
@@ -103,6 +123,9 @@ class EdgeService : AccessibilityService() {
     /** One edge's strip: owns its touch stream from finger-down to finger-up. */
     @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
     private inner class Strip(private val edge: Edge) : View(this@EdgeService) {
+
+        /** True while WindowManager is showing this strip; a retry adds it again. */
+        var attached = false
 
         private val density = resources.displayMetrics.density
         private var downX = 0f
@@ -172,14 +195,14 @@ class EdgeService : AccessibilityService() {
  * little from the apps underneath. The visible line is 2dp at 45%: enough to
  * find, faint enough over a video.
  *
- * The strips run from 12% to 60% of the screen height: clear of the status
- * bar pull-down at the top, and clear of the keyboard at the bottom, whose
- * outer keys (q, a, shift, backspace) sit right on the edges.
+ * The strips run from 5% to 85% of the screen height: nearly the whole edge,
+ * stopping short of the status bar pull-down at the top and the outer
+ * keyboard keys (q, a, shift, backspace) at the bottom.
  */
 object EdgeStrip {
     const val WIDTH_DP = 16f
-    const val TOP = 0.12f
-    const val BOTTOM = 0.60f
+    const val TOP = 0.05f
+    const val BOTTOM = 0.85f
     const val SIDE_DP = 28f
     const val DOWN_DP = 64f
     const val LINE_DP = 2f

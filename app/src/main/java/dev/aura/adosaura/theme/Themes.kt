@@ -14,19 +14,19 @@ object Themes {
 
     /** The directory names under `assets/themes/`, in the order they show up. */
     val BUNDLED = listOf(
+        "nature",
+        "aura",
         "purplerain",
         "tokyo-night",
-        "aura",
         "nord",
         "gruvbox",
         "sunset",
         "neon",
         "mono",
         "paper",
-        "crt",
     )
 
-    const val DEFAULT = "gruvbox"
+    const val DEFAULT = "nature"
 
     /** Load one bundled theme by name; unknown names fall back, never crash. */
     fun load(context: Context, name: String, panelAlpha: Float): ThemePalette {

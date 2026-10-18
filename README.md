@@ -93,7 +93,7 @@ result that does not add up, so a detection bug can never cost you the file.
 | --- | --- |
 | `page` | 0-based page; pages exist implicitly up to the highest one |
 | `zone` | `top` = the horizontal row across the top · `main` = the column below |
-| `type` | `clock`, `calendar`, `clockcal`, `apps:<group>`, `stats`, `perf`, `weather`, and the animated `analog`, `battery`, `matrix` |
+| `type` | `clock`, `calendar`, `clockcal`, `apps:<group>`, `stats`, `perf`, `weather`, the animated `analog`, `battery`, `matrix`, and the text tiles `file:<path>`, `note:<name>` |
 | `weight` | share of the zone's axis. In `main` it also spans slots, so `2` is the tall middle tile |
 | `span` | optional multiplier on weight (`1 span 2` = `2 weight`) |
 
@@ -121,6 +121,34 @@ bigger / smaller, reset.
 The animated tiles, `analog` (a sweeping second hand), `battery` (the charge as
 liquid, with bubbles while charging) and `matrix` (falling glyphs), drop to one
 frame a second in eco mode and stop completely when the launcher is off screen.
+
+### Text tiles — `file:` and `note:`
+
+Both read a file in `/sdcard/adosaura/` (or an absolute path) and redraw the
+moment it changes, so anything that can write a file can feed the home screen.
+
+```ini
+1 0 file:status.txt   1 2
+1 0 note:todo         1 2
+```
+
+`file:<path>` shows any text file, soft-wrapped and scrollable. Colour codes
+come out in the theme's colours rather than as junk, so a script can colour its
+own output: `\e[32m` is the theme's green, `\e[1m` bold, `\e[2m` dim. True
+colour (`\e[38;2;r;g;bm`) is kept as written. A file over 64 KB shows its last
+64 KB, like `tail`. For example, from Termux:
+
+```sh
+printf 'build  \033[32mpassing\033[0m\nvpn    \033[31mdown\033[0m\n' > /sdcard/adosaura/status.txt
+```
+
+`note:<name>` is a Markdown checklist in `<name>.md` (`note:` alone is
+`todo.md`). Tap an item to tick it; `+ add` opens a line to type into, Enter
+adds and keeps it open for the next item, Enter on an empty line or Back
+closes it; `clear done` drops the ticked items. Only the touched line
+changes — headings, plain text and the rest of the file keep their exact
+bytes — so the same file works in Obsidian, Markor or `vim` alongside the
+launcher, and an edit made there shows up on the tile live.
 
 ### `look` — weather location override
 

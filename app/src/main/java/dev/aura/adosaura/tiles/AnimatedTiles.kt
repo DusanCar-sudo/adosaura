@@ -3,6 +3,10 @@ package dev.aura.adosaura.tiles
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.BatteryManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -11,7 +15,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import dev.aura.adosaura.ui.WhileStarted
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,9 +48,13 @@ import kotlinx.coroutines.delay
 import java.time.LocalTime
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Seconds since the tile appeared, advanced every frame. In eco mode the
@@ -53,7 +65,7 @@ import kotlin.math.sin
 private fun rememberFrameSeconds(): Float {
     var t by remember { mutableFloatStateOf(0f) }
     val eco = Palette.eco
-    LaunchedEffect(eco) {
+    WhileStarted(eco) {
         val start = withFrameMillis { it } - (t * 1000).toLong()
         while (true) {
             if (eco) {
@@ -130,12 +142,137 @@ private fun readCharge(context: Context): Charge {
     )
 }
 
-/** A battery filled with liquid that sloshes; bubbles rise while charging. */
+/**
+ * Gravity as the tile feels it, in screen coordinates (x right, y down), as a
+ * spring so the liquid overshoots and settles like a real water level.
+ */
+private class Slosh {
+    var gx = 0f; var gy = 1f
+    var vx = 0f; var vy = 0f
+    var sx = 0f; var sy = 1f   // raw sensor target
+    var last = -1f
+    var shake = 0f             // 0..1, how much the colours are cycling
+    var hue = 0f               // degrees
+
+    fun step(t: Float) {
+        val dt = if (last < 0f) 0f else (t - last).coerceIn(0f, 0.05f)
+        last = t
+        shake = (shake - dt / 4f).coerceAtLeast(0f)          // fades ~4 s after the shaking stops
+        hue = (hue + dt * (60f + 300f * shake)) % 360f
+        val k = 40f; val c = 5f
+        vx += (k * (sx - gx) - c * vx) * dt
+        vy += (k * (sy - gy) - c * vy) * dt
+        gx += vx * dt
+        gy += vy * dt
+        val n = hypot(gx, gy)
+        if (n > 1e-3f) { gx /= n; gy /= n }
+    }
+}
+
+/** Phone gravity into [Slosh]; flat on a table the liquid settles level. */
+@Composable
+private fun RegisterGravity(slosh: Slosh, active: Boolean) {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(active, lifecycle) {
+        val sm = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        val sensor = sm?.getDefaultSensor(Sensor.TYPE_GRAVITY)
+            ?: sm?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(e: SensorEvent) {
+                val tx = -e.values[0] / SensorManager.GRAVITY_EARTH
+                val ty = e.values[1] / SensorManager.GRAVITY_EARTH
+                val len = hypot(tx, ty)
+                // Screen-plane pull fades out as the phone lies flat.
+                val w = ((len - 0.15f) / 0.2f).coerceIn(0f, 1f)
+                val dx = if (len > 1e-3f) tx / len else 0f
+                val dy = if (len > 1e-3f) ty / len else 1f
+                val x = w * dx
+                val y = w * dy + (1 - w)
+                val n = hypot(x, y).coerceAtLeast(1e-3f)
+                slosh.sx = x / n
+                slosh.sy = y / n
+            }
+            override fun onAccuracyChanged(s: Sensor?, accuracy: Int) {}
+        }
+        // A shake is the raw pull straying well off 1 g; gravity alone cannot see it.
+        val shaker = object : SensorEventListener {
+            override fun onSensorChanged(e: SensorEvent) {
+                val m = sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2])
+                if (abs(m - SensorManager.GRAVITY_EARTH) > 6f) slosh.shake = min(1f, slosh.shake + 0.15f)
+            }
+            override fun onAccuracyChanged(s: Sensor?, accuracy: Int) {}
+        }
+        val accel = sm?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        // Gravity stays live even in eco (the tile must still tilt); eco
+        // only slows the rate, since the costly part is per-frame drawing.
+        val rate = if (active) SensorManager.SENSOR_DELAY_GAME else SensorManager.SENSOR_DELAY_UI
+        fun start() {
+            if (sm == null || sensor == null) return
+            sm.registerListener(listener, sensor, rate)
+            if (accel != null) sm.registerListener(shaker, accel, rate)
+        }
+        fun stop() {
+            sm?.unregisterListener(listener)
+            sm?.unregisterListener(shaker)
+        }
+        // Game-rate sensors keep waking the CPU after Home is left, and the
+        // system kills a background process that burns CPU.
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) start() else if (event == Lifecycle.Event.ON_STOP) stop()
+        }
+        lifecycle.addObserver(observer) // replays up to the current state, so an already-started launcher registers now
+        onDispose { lifecycle.removeObserver(observer); stop() }
+    }
+}
+
+/** Area of the w x h box (centred on the origin) where x*gx + y*gy >= d. */
+private fun filledArea(w: Float, h: Float, gx: Float, gy: Float, d: Float): Float {
+    var poly = listOf(
+        Offset(-w / 2, -h / 2), Offset(w / 2, -h / 2), Offset(w / 2, h / 2), Offset(-w / 2, h / 2),
+    )
+    val out = ArrayList<Offset>(6)
+    for (i in poly.indices) {
+        val a = poly[i]; val b = poly[(i + 1) % poly.size]
+        val da = a.x * gx + a.y * gy - d
+        val db = b.x * gx + b.y * gy - d
+        if (da >= 0) out.add(a)
+        if ((da >= 0) != (db >= 0)) {
+            val f = da / (da - db)
+            out.add(Offset(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f))
+        }
+    }
+    poly = out
+    var area = 0f
+    for (i in poly.indices) {
+        val a = poly[i]; val b = poly[(i + 1) % poly.size]
+        area += a.x * b.y - b.x * a.y
+    }
+    return abs(area) / 2f
+}
+
+/** The surface offset along gravity that holds exactly [level] of the box. */
+private fun surfaceOffset(w: Float, h: Float, gx: Float, gy: Float, level: Float): Float {
+    val half = (abs(gx) * w + abs(gy) * h) / 2f
+    val target = w * h * level
+    var lo = -half; var hi = half
+    repeat(18) {
+        val mid = (lo + hi) / 2f
+        if (filledArea(w, h, gx, gy, mid) > target) lo = mid else hi = mid
+    }
+    return (lo + hi) / 2f
+}
+
+/**
+ * A battery that is a water level (waservaga): the liquid stays flat against
+ * gravity as the phone tilts, sloshes when it is moved, and bubbles rise
+ * toward "up" while charging.
+ */
 @Composable
 fun BatteryTile() {
     val context = LocalContext.current.applicationContext
     var charge by remember { mutableStateOf(readCharge(context)) }
-    LaunchedEffect(Unit) {
+    WhileStarted {
         while (true) {
             delay(5000)
             charge = readCharge(context)
@@ -143,12 +280,21 @@ fun BatteryTile() {
     }
     val t = rememberFrameSeconds()
     val p = Palette.tile
+    val slosh = remember { Slosh() }
+    RegisterGravity(slosh, active = true)
+    slosh.step(t)
     val level = charge.percent / 100f
-    val liquid = when {
+    val base = when {
         charge.percent <= 20 -> p.red
         charge.percent <= 45 -> p.yellow
         else -> p.green
     }
+    // Shaking spins the liquid through the rainbow; it drifts back to its level colour.
+    val liquid = androidx.compose.ui.graphics.lerp(
+        base,
+        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(slosh.hue, 0.8f, 1f))),
+        slosh.shake.coerceAtMost(1f),
+    )
 
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -165,25 +311,37 @@ fun BatteryTile() {
                         androidx.compose.ui.geometry.RoundRect(left, top, left + bodyW, top + h, radius),
                     )
                 }
+                val gx = slosh.gx; val gy = slosh.gy
+                val ux = -gy; val uy = gx                 // along the surface
+                val centre = Offset(left + bodyW / 2f, top + h / 2f)
+                val d = surfaceOffset(bodyW, h, gx, gy, level)
+                val agitation = (hypot(slosh.vx, slosh.vy) * 0.8f).coerceIn(0f, 1f)
+                val amp = h * (0.025f + 0.07f * agitation)
+                val reach = hypot(bodyW, h)
                 clipPath(body) {
-                    val surface = top + h * (1 - level)
-                    val wave = Path().apply {
-                        moveTo(left, top + h)
-                        var x = 0f
-                        while (x <= bodyW) {
-                            val y = surface + sin(x / bodyW * 4 * PI.toFloat() + t * 3f) * h * 0.04f
-                            lineTo(left + x, y)
-                            x += 4f
-                        }
-                        lineTo(left + bodyW, top + h)
-                        close()
+                    val wave = Path()
+                    var s = -reach
+                    var first = true
+                    while (s <= reach) {
+                        val rip = sin(s / bodyW * 4 * PI.toFloat() + t * 3f) * amp
+                        val x = centre.x + gx * (d + rip) + ux * s
+                        val y = centre.y + gy * (d + rip) + uy * s
+                        if (first) { wave.moveTo(x, y); first = false } else wave.lineTo(x, y)
+                        s += 4f
                     }
+                    wave.lineTo(centre.x + gx * (d + reach) + ux * reach, centre.y + gy * (d + reach) + uy * reach)
+                    wave.lineTo(centre.x + gx * (d + reach) - ux * reach, centre.y + gy * (d + reach) - uy * reach)
+                    wave.close()
                     drawPath(wave, liquid.copy(alpha = 0.75f))
-                    if (charge.charging) {
+                    if (charge.charging && level > 0f) {
+                        val half = (abs(gx) * bodyW + abs(gy) * h) / 2f
+                        val halfU = (abs(gy) * bodyW + abs(gx) * h) / 2f
                         for (b in 0 until 7) {
                             val phase = (t * 0.4f + b * 0.37f) % 1f
-                            val bx = left + bodyW * ((b * 0.29f + 0.1f) % 1f)
-                            val by = top + h - phase * h * level
+                            val lateral = ((b * 0.29f + 0.1f) % 1f - 0.5f) * 1.8f * halfU
+                            val along = half - phase * (half - d)   // far wall up to the surface
+                            val bx = centre.x + gx * along + ux * lateral
+                            val by = centre.y + gy * along + uy * lateral
                             drawCircle(p.fgBright.copy(alpha = 0.5f * (1 - phase)), h * 0.035f, Offset(bx, by))
                         }
                     }

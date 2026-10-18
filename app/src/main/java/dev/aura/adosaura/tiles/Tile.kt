@@ -37,6 +37,12 @@ enum class TileType(val id: String) {
 
     /** Falling columns of glyphs. Animated, decorative. */
     MATRIX("matrix"),
+
+    /** Any text file, redrawn when it changes (`file:status.txt`). Colour codes become theme colours. */
+    FILE("file"),
+
+    /** A Markdown checklist you can tick, add to and clear (`note:todo` = todo.md). */
+    NOTE("note"),
     ;
 
     companion object {
@@ -66,5 +72,7 @@ fun titleOf(spec: TileSpec): String {
         TileType.ANALOG -> "clock"
         TileType.BATTERY -> "battery"
         TileType.MATRIX -> "matrix"
+        TileType.FILE -> TextFiles.title(spec.arg, "file")
+        TileType.NOTE -> TextFiles.title(spec.arg, "todo")
     }
 }

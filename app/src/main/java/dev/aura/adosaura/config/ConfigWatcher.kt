@@ -1,6 +1,5 @@
 package dev.aura.adosaura.config
 
-import android.os.FileObserver
 import android.os.Handler
 import android.os.Looper
 import java.io.File
@@ -10,7 +9,9 @@ import java.io.File
  * shows up without reinstalling.
  *
  * FileObserver on shared storage can be silently dropped after doze, so this is
- * best-effort by design — the status strip also carries a manual reload.
+ * best-effort by design — the status strip also carries a manual reload. The
+ * directory is watched through [DirWatch], because a `file:` or `note:` tile
+ * watches it too.
  *
  * @param dir      directory to watch
  * @param debounce collapse bursts (an editor that writes twice in 200 ms should
@@ -23,7 +24,7 @@ class ConfigWatcher(
     private val onChange: () -> Unit,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var observer: FileObserver? = null
+    private var watch: AutoCloseable? = null
 
     private val watchedNames = setOf(
         ConfigFiles.APPS_NAME,
@@ -34,37 +35,26 @@ class ConfigWatcher(
 
     private val fire = Runnable { onChange() }
 
-    @Suppress("DEPRECATION")  // the File-based constructor is the only portable one here
     fun start() {
-        if (observer != null) return
+        if (watch != null) return
         if (!dir.isDirectory) {
             runCatching { dir.mkdirs() }
         }
 
-        val callback = { _: Int, path: String? ->
-            // `path == null` means we lost track of which file moved; reload.
-            if (path == null || path in watchedNames) {
-                mainHandler.removeCallbacks(fire)
-                mainHandler.postDelayed(fire, debounceMs)
-            }
-        }
-
-        observer = runCatching {
-            object : FileObserver(
-                dir.absolutePath,
-                CREATE or MODIFY or DELETE or MOVED_TO or MOVED_FROM or CLOSE_WRITE,
-            ) {
-                @Suppress("DEPRECATION")
-                override fun onEvent(event: Int, path: String?) {
-                    callback(event, path)
+        watch = runCatching {
+            DirWatch.add(dir) { path ->
+                // `path == null` means we lost track of which file moved; reload.
+                if (path == null || path in watchedNames) {
+                    mainHandler.removeCallbacks(fire)
+                    mainHandler.postDelayed(fire, debounceMs)
                 }
             }
-        }.getOrNull().also { it?.startWatching() }
+        }.getOrNull()
     }
 
     fun stop() {
-        observer?.stopWatching()
-        observer = null
+        watch?.close()
+        watch = null
         mainHandler.removeCallbacks(fire)
     }
 }

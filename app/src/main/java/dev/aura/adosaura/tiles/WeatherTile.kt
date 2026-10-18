@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +38,7 @@ import android.location.LocationManager
 import androidx.compose.ui.platform.LocalContext
 import dev.aura.adosaura.config.ConfigFiles
 import dev.aura.adosaura.config.KeyValueParser
+import dev.aura.adosaura.ui.WhileStarted
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -63,7 +63,7 @@ fun WeatherTile(modifier: Modifier = Modifier) {
     var place by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    WhileStarted {
         while (true) {
             val result = withContext(Dispatchers.IO) { runCatching { fetchWeather(context) } }
             result.onSuccess {

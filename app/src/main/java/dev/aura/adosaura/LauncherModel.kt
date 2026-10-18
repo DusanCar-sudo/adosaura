@@ -5,6 +5,7 @@ import android.content.pm.LauncherApps
 import android.os.UserHandle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.aura.adosaura.config.AppEntry
@@ -38,6 +39,9 @@ import kotlinx.coroutines.withContext
 class LauncherModel(private val context: Context) {
 
     val repo = AppRepository(context)
+
+    /** Last user interaction, wall-clock ms; the charging overlay stays away while the user is active. */
+    val lastInteraction = mutableLongStateOf(System.currentTimeMillis())
 
     var labels by mutableStateOf(emptyMap<String, String>())
         private set
@@ -573,6 +577,7 @@ class LauncherModel(private val context: Context) {
     fun goHome() {
         closeDrawer()
         closeSwitcher()
+        closeDeepClean()
         homeSignal++
     }
 
@@ -587,13 +592,26 @@ class LauncherModel(private val context: Context) {
         optimizeMenuOpen = true
     }
 
+    /** The storage clean: app caches, spent installers, thumbnails, logs. */
+    var deepCleanOpen by mutableStateOf(false)
+        private set
+
+    fun openDeepClean() {
+        dismissMenus()
+        deepCleanOpen = true
+    }
+
+    fun closeDeepClean() {
+        deepCleanOpen = false
+    }
+
     fun cleanAllRecents(context: Context) {
         if (cleaning) return
         cleaning = true
         flash("cleaning…", 0)
         scope.launch(Dispatchers.IO) {
             val r = dev.aura.adosaura.switcher.Optimizer(context).run()
-            val battery = if (dev.aura.adosaura.switcher.Optimizer.powerSaveOn(context)) "battery saver on" else "hold clean for battery"
+            val battery = if (dev.aura.adosaura.switcher.Optimizer.powerSaveOn(context)) "battery saver on" else "hold clean for storage"
             withContext(Dispatchers.Main) {
                 cleaning = false
                 flash("freed ${r.freedMb} MB · ram ${r.ramBefore}% → ${r.ramAfter}% · $battery", 6000)

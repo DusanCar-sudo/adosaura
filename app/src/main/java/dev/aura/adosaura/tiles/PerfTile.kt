@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.aura.adosaura.theme.AdosauraMono
 import dev.aura.adosaura.theme.Palette
+import dev.aura.adosaura.ui.WhileStarted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -46,10 +46,19 @@ fun PerfTile(modifier: Modifier = Modifier) {
     var ramUsedStr by remember { mutableStateOf("0.0 GB") }
     var ramTotalStr by remember { mutableStateOf("0.0 GB") }
 
-    LaunchedEffect(Unit) {
+    WhileStarted {
         withContext(Dispatchers.IO) {
             var lastTotal = 0L
             var lastIdle = 0L
+
+            // The CPU zones never change: find them once per start, not by
+            // opening all 84 zones' `type` file every second.
+            val cpuTempFiles = File("/sys/class/thermal").runCatching { listFiles() }.getOrNull().orEmpty()
+                .filter { dir ->
+                    dir.name.startsWith("thermal_zone") &&
+                        File(dir, "type").runCatching { readText().trim().lowercase().startsWith("cpu") }.getOrDefault(false)
+                }
+                .map { File(it, "temp") }
 
             while (isActive) {
                 // 1. CPU. Android 8+ forbids apps from reading /proc/stat, so on
@@ -100,14 +109,9 @@ fun PerfTile(modifier: Modifier = Modifier) {
 
                 // 3. Temperature: the median CPU zone, so one core spiking does not
                 //    read as the whole chip being hot. Falls back to the battery.
-                val cpuTemps = mutableListOf<Int>()
-                File("/sys/class/thermal").runCatching { listFiles() }.getOrNull()?.forEach { dir ->
-                    if (!dir.name.startsWith("thermal_zone")) return@forEach
-                    val type = File(dir, "type").runCatching { readText().trim().lowercase() }.getOrNull() ?: return@forEach
-                    if (!type.startsWith("cpu")) return@forEach
-                    val raw = File(dir, "temp").runCatching { readText().trim().toIntOrNull() }.getOrNull() ?: return@forEach
-                    val t = if (raw > 1000) raw / 1000 else raw
-                    if (t in 15..110) cpuTemps += t
+                val cpuTemps = cpuTempFiles.mapNotNull { file ->
+                    val raw = file.runCatching { readText().trim().toIntOrNull() }.getOrNull() ?: return@mapNotNull null
+                    (if (raw > 1000) raw / 1000 else raw).takeIf { it in 15..110 }
                 }
                 val tempLabel = if (cpuTemps.isNotEmpty()) {
                     "${cpuTemps.sorted()[cpuTemps.size / 2]}°C"

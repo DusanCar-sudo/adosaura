@@ -96,6 +96,8 @@ fun TileView(
             TileType.ANALOG -> AnalogClockTile()
             TileType.BATTERY -> BatteryTile()
             TileType.MATRIX -> MatrixTile()
+            TileType.FILE -> FileTile(spec.arg)
+            TileType.NOTE -> NoteTile(spec.arg)
             null -> UnknownTile(spec.type)
         } }
     } }

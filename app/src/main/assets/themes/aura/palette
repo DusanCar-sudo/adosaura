@@ -1,16 +1,16 @@
-# aura — the brand sheet: electric teal on charcoal
-bg=#0b0c0e
-bg_alt=#14161a
-border=#262a2f
-fg=#ede9e0
-fg_bright=#ffffff
-dim=#565b61
-muted=#a7a9ac
-accent=#00e5d0
-accent_bright=#5ffbf1
-red=#ff6ac7
-green=#c6ff4d
-yellow=#ffd75e
-blue=#4da6ff
-cyan=#00e5d0
-orange=#ff9457
+# aura — the brand sheet: Aura Nature (forest, cream, gold, olive + stripes)
+bg=#070907
+bg_alt=#0d110d
+border=#535c37
+fg=#f2ebc9
+fg_bright=#faf6dd
+dim=#4a5230
+muted=#8a9168
+accent=#e7cf85
+accent_bright=#f5e3a8
+red=#e4312b
+green=#2fae4e
+yellow=#f8b91e
+blue=#1aa6e0
+cyan=#1aa6e0
+orange=#e7cf85
